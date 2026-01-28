@@ -1,35 +1,33 @@
-from sqlalchemy import Column, String, Text, ForeignKey, Float, Integer, Enum
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, String, Text, ForeignKey, Float, Boolean, Enum
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from sqlalchemy.orm import relationship
 import enum
 from .base import Base
 
 
 class InsightType(str, enum.Enum):
-    """Types of generated insights."""
+    """Types of insights generated."""
+    ANOMALY = "anomaly"
+    TREND = "trend"
+    RECOMMENDATION = "recommendation"
     BLIND_SPOT = "blind_spot"
     OPTIMIZATION = "optimization"
-    DESIGN_RECOMMENDATION = "design_recommendation"
-    PATTERN_DISCOVERY = "pattern_discovery"
-    CROSS_DOMAIN_CORRELATION = "cross_domain_correlation"
-    NEXT_GEN_SPEC = "next_gen_spec"
 
 
 class InsightPriority(str, enum.Enum):
     """Priority levels for insights."""
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
     CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
 
 
 class Insight(Base):
-    """AI-generated insight about system behavior or design."""
+    """AI-generated insight about a system."""
 
     __tablename__ = "insights"
 
-    system_id = Column(UUID(as_uuid=True), ForeignKey("systems.id"))
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"))
+    system_id = Column(UUID(as_uuid=True), ForeignKey("systems.id"), nullable=False)
 
     # Classification
     insight_type = Column(Enum(InsightType), nullable=False)
@@ -37,64 +35,42 @@ class Insight(Base):
 
     # Content
     title = Column(String(500), nullable=False)
-    summary = Column(Text, nullable=False)
-    detailed_analysis = Column(Text)
-    natural_language_explanation = Column(Text)
+    description = Column(Text)
+    natural_language_summary = Column(Text)
 
-    # 80/20 Impact
-    impact_score = Column(Float)  # How much this affects overall fleet
-    affected_systems_count = Column(Integer)
-    potential_savings = Column(Float)  # Estimated cost/time savings
-
-    # Supporting data
-    evidence = Column(JSONB)  # Data points supporting this insight
-    visualizations = Column(JSONB)  # Chart configurations
-    related_fields = Column(ARRAY(String))
+    # Impact
+    impact_score = Column(Float)
+    affected_components = Column(ARRAY(String))
 
     # Recommendations
     recommendations = Column(JSONB)
-    action_items = Column(JSONB)
-
-    # For blind spot detection
-    missing_data_description = Column(Text)
-    recommended_sensors = Column(JSONB)
-
-    # For next-gen specs
-    next_gen_requirements = Column(JSONB)
-    sensor_specifications = Column(JSONB)
-    data_architecture_changes = Column(JSONB)
-
+    
     # Status
-    status = Column(String(50), default="new")  # "new", "reviewed", "actioned", "dismissed"
-    reviewed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    actioned_at = Column(String(50))
+    is_acknowledged = Column(Boolean, default=False)
+    is_resolved = Column(Boolean, default=False)
 
     # Relationships
     system = relationship("System", back_populates="insights")
 
 
 class DataGap(Base):
-    """Identified gaps in data collection (blind spots)."""
+    """Identified gap in data coverage (blind spot)."""
 
     __tablename__ = "data_gaps"
 
     system_id = Column(UUID(as_uuid=True), ForeignKey("systems.id"), nullable=False)
-    insight_id = Column(UUID(as_uuid=True), ForeignKey("insights.id"))
 
-    # Gap description
+    # Description
     title = Column(String(500), nullable=False)
     description = Column(Text)
 
     # What's missing
-    missing_measurement = Column(String(255))
-    affected_diagnoses = Column(ARRAY(String))  # What can't be diagnosed
-    recurring_issues = Column(JSONB)  # Issues that can't be explained
-
-    # Recommended solution
+    missing_data_type = Column(String(100))
     recommended_sensor = Column(JSONB)
-    estimated_cost = Column(Float)
-    implementation_complexity = Column(String(20))  # "low", "medium", "high"
 
     # Impact
-    diagnostic_coverage_improvement = Column(Float)  # % improvement if fixed
-    priority_score = Column(Float)
+    diagnostic_coverage_improvement = Column(Float)
+    related_anomalies = Column(ARRAY(UUID(as_uuid=True)))
+
+    # Resolution
+    is_addressed = Column(Boolean, default=False)

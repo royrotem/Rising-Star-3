@@ -126,7 +126,7 @@ export default function Dashboard() {
           </p>
         </div>
         <button
-          onClick={() => navigate('/systems')}
+          onClick={() => navigate('/systems/new')}
           className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -263,7 +263,7 @@ export default function Dashboard() {
                 <Server className="w-8 h-8 text-slate-600 mx-auto mb-2" />
                 <p className="text-slate-400 text-sm">No systems yet</p>
                 <Link
-                  to="/systems"
+                  to="/systems/new"
                   className="text-primary-400 text-sm hover:text-primary-300"
                 >
                   Add your first system

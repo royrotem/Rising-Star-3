@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus,
   Search,
@@ -7,9 +7,10 @@ import {
   Cpu,
   Heart,
   Car,
+  Rocket,
+  Factory,
   Activity,
   ChevronRight,
-  X,
   Loader2
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -20,6 +21,8 @@ const systemTypeIcons: Record<string, React.ElementType> = {
   vehicle: Car,
   robot: Cpu,
   medical_device: Heart,
+  aerospace: Rocket,
+  industrial: Factory,
   default: Server,
 };
 
@@ -40,15 +43,10 @@ function getHealthColor(score: number) {
 }
 
 export default function Systems() {
+  const navigate = useNavigate();
   const [systems, setSystems] = useState<System[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [newSystem, setNewSystem] = useState({
-    name: '',
-    system_type: 'vehicle',
-  });
 
   useEffect(() => {
     loadSystems();
@@ -92,34 +90,6 @@ export default function Systems() {
     }
   };
 
-  const handleCreateSystem = async () => {
-    if (!newSystem.name.trim()) return;
-
-    setCreating(true);
-    try {
-      const created = await systemsApi.create(newSystem);
-      setSystems(prev => [...prev, created]);
-      setShowCreateModal(false);
-      setNewSystem({ name: '', system_type: 'vehicle' });
-    } catch (error) {
-      console.error('Failed to create system:', error);
-      // Add locally for demo
-      const mockSystem: System = {
-        id: String(Date.now()),
-        name: newSystem.name,
-        system_type: newSystem.system_type,
-        status: 'active',
-        health_score: 100,
-        created_at: new Date().toISOString(),
-      };
-      setSystems(prev => [...prev, mockSystem]);
-      setShowCreateModal(false);
-      setNewSystem({ name: '', system_type: 'vehicle' });
-    } finally {
-      setCreating(false);
-    }
-  };
-
   const filteredSystems = systems.filter(system =>
     system.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     system.system_type.toLowerCase().includes(searchQuery.toLowerCase())
@@ -136,7 +106,7 @@ export default function Systems() {
           </p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => navigate('/systems/new')}
           className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -164,10 +134,10 @@ export default function Systems() {
       ) : filteredSystems.length === 0 ? (
         <div className="text-center py-12">
           <Server className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <p className="text-slate-400">No systems found</p>
+          <p className="text-slate-400 mb-2">No systems found</p>
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="mt-4 text-primary-400 hover:text-primary-300"
+            onClick={() => navigate('/systems/new')}
+            className="text-primary-400 hover:text-primary-300 font-medium"
           >
             Add your first system
           </button>
@@ -213,81 +183,6 @@ export default function Systems() {
               </Link>
             );
           })}
-        </div>
-      )}
-
-      {/* Create System Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-white">Add New System</h2>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  System Name
-                </label>
-                <input
-                  type="text"
-                  value={newSystem.name}
-                  onChange={(e) => setNewSystem(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g., Fleet Vehicle Beta"
-                  className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-primary-500 transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  System Type
-                </label>
-                <select
-                  value={newSystem.system_type}
-                  onChange={(e) => setNewSystem(prev => ({ ...prev, system_type: e.target.value }))}
-                  className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-primary-500 transition-colors"
-                >
-                  <option value="vehicle">Vehicle</option>
-                  <option value="robot">Robot</option>
-                  <option value="medical_device">Medical Device</option>
-                  <option value="aerospace">Aerospace</option>
-                  <option value="industrial">Industrial Equipment</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateSystem}
-                  disabled={!newSystem.name.trim() || creating}
-                  className="flex-1 px-4 py-3 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  {creating ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-5 h-5" />
-                      Create System
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
     </div>

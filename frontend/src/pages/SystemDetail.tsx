@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { 
+import {
   ArrowLeft,
   Upload,
   MessageSquare,
@@ -9,67 +9,190 @@ import {
   TrendingDown,
   Lightbulb,
   ChevronRight,
-  RefreshCw
+  RefreshCw,
+  Loader2,
+  CheckCircle
 } from 'lucide-react';
 import clsx from 'clsx';
+import { systemsApi } from '../services/api';
+import type { System, AnalysisResult } from '../types';
 
-// Mock data
-const mockAnalysis = {
-  health_score: 87.5,
-  anomalies: [
-    {
-      id: '1',
-      type: 'behavioral_deviation',
-      severity: 'medium',
-      title: 'Motor current draw increased',
-      description: 'Motor A is drawing 12% more current than baseline under similar load conditions.',
-      natural_language_explanation: 
-        'Motor A is consuming more power than expected. This started 3 days ago, ' +
-        'coinciding with firmware update v2.3.1. The increased current draw is consistent ' +
-        'across all operating conditions, suggesting a software-related cause rather than ' +
-        'mechanical wear.',
-      recommendations: [
-        {
-          type: 'investigation',
-          priority: 'high',
-          action: 'Review firmware v2.3.1 changes to motor control parameters',
-        },
-      ],
-      impact_score: 72.5,
-    },
-  ],
-  engineering_margins: [
-    {
-      component: 'Battery Pack',
-      parameter: 'max_temperature',
-      current_value: 38.5,
-      design_limit: 45.0,
-      margin_percentage: 14.4,
-      trend: 'stable',
-      safety_critical: true,
-    },
-    {
-      component: 'Motor A',
-      parameter: 'max_current',
-      current_value: 28.5,
-      design_limit: 35.0,
-      margin_percentage: 18.6,
-      trend: 'degrading',
-      safety_critical: false,
-    },
-  ],
-  blind_spots: [
-    {
-      title: 'Missing vibration data',
-      description: 'We cannot fully diagnose the recurring motor anomalies because we lack high-frequency vibration data.',
-      recommended_sensor: {
-        type: 'Accelerometer',
-        specification: '3-axis, 1kHz sampling',
-        estimated_cost: 150,
+// Mock analysis data per system type
+const mockAnalysisData: Record<string, {
+  health_score: number;
+  anomalies: Array<{
+    id: string;
+    type: string;
+    severity: string;
+    title: string;
+    description: string;
+    natural_language_explanation: string;
+    recommendations: Array<{ type: string; priority: string; action: string }>;
+    impact_score: number;
+  }>;
+  engineering_margins: Array<{
+    component: string;
+    parameter: string;
+    current_value: number;
+    design_limit: number;
+    margin_percentage: number;
+    trend: string;
+    safety_critical: boolean;
+  }>;
+  blind_spots: Array<{
+    title: string;
+    description: string;
+    recommended_sensor: { type: string; specification: string; estimated_cost: number };
+    diagnostic_coverage_improvement: number;
+  }>;
+}> = {
+  '1': {
+    health_score: 87.5,
+    anomalies: [
+      {
+        id: '1',
+        type: 'behavioral_deviation',
+        severity: 'medium',
+        title: 'Motor current draw increased',
+        description: 'Motor A is drawing 12% more current than baseline under similar load conditions.',
+        natural_language_explanation:
+          'Motor A is consuming more power than expected. This started 3 days ago, ' +
+          'coinciding with firmware update v2.3.1. The increased current draw is consistent ' +
+          'across all operating conditions, suggesting a software-related cause rather than ' +
+          'mechanical wear.',
+        recommendations: [
+          {
+            type: 'investigation',
+            priority: 'high',
+            action: 'Review firmware v2.3.1 changes to motor control parameters',
+          },
+        ],
+        impact_score: 72.5,
       },
-      diagnostic_coverage_improvement: 25,
-    },
-  ],
+    ],
+    engineering_margins: [
+      {
+        component: 'Battery Pack',
+        parameter: 'max_temperature',
+        current_value: 38.5,
+        design_limit: 45.0,
+        margin_percentage: 14.4,
+        trend: 'stable',
+        safety_critical: true,
+      },
+      {
+        component: 'Motor A',
+        parameter: 'max_current',
+        current_value: 28.5,
+        design_limit: 35.0,
+        margin_percentage: 18.6,
+        trend: 'degrading',
+        safety_critical: false,
+      },
+    ],
+    blind_spots: [
+      {
+        title: 'Missing vibration data',
+        description: 'We cannot fully diagnose the recurring motor anomalies because we lack high-frequency vibration data.',
+        recommended_sensor: {
+          type: 'Accelerometer',
+          specification: '3-axis, 1kHz sampling',
+          estimated_cost: 150,
+        },
+        diagnostic_coverage_improvement: 25,
+      },
+    ],
+  },
+  '2': {
+    health_score: 94.2,
+    anomalies: [],
+    engineering_margins: [
+      {
+        component: 'Joint 1 Servo',
+        parameter: 'max_torque',
+        current_value: 42.0,
+        design_limit: 60.0,
+        margin_percentage: 30.0,
+        trend: 'stable',
+        safety_critical: true,
+      },
+      {
+        component: 'End Effector',
+        parameter: 'grip_force',
+        current_value: 18.5,
+        design_limit: 25.0,
+        margin_percentage: 26.0,
+        trend: 'stable',
+        safety_critical: false,
+      },
+      {
+        component: 'Control Unit',
+        parameter: 'cpu_temperature',
+        current_value: 52.0,
+        design_limit: 85.0,
+        margin_percentage: 38.8,
+        trend: 'stable',
+        safety_critical: false,
+      },
+    ],
+    blind_spots: [
+      {
+        title: 'Missing force-torque sensor',
+        description: 'Adding a 6-axis force-torque sensor would enable collision detection and compliant motion control.',
+        recommended_sensor: {
+          type: 'Force-Torque Sensor',
+          specification: '6-axis, 1kHz',
+          estimated_cost: 2500,
+        },
+        diagnostic_coverage_improvement: 35,
+      },
+    ],
+  },
+  '3': {
+    health_score: 99.1,
+    anomalies: [],
+    engineering_margins: [
+      {
+        component: 'Magnet Coil',
+        parameter: 'helium_level',
+        current_value: 78.5,
+        design_limit: 100.0,
+        margin_percentage: 78.5,
+        trend: 'stable',
+        safety_critical: true,
+      },
+      {
+        component: 'RF Amplifier',
+        parameter: 'power_output',
+        current_value: 12.5,
+        design_limit: 15.0,
+        margin_percentage: 16.7,
+        trend: 'stable',
+        safety_critical: false,
+      },
+      {
+        component: 'Gradient Coil',
+        parameter: 'max_slew_rate',
+        current_value: 180.0,
+        design_limit: 200.0,
+        margin_percentage: 10.0,
+        trend: 'stable',
+        safety_critical: true,
+      },
+    ],
+    blind_spots: [
+      {
+        title: 'Patient motion tracking',
+        description: 'Adding real-time patient motion tracking would reduce scan artifacts and improve image quality.',
+        recommended_sensor: {
+          type: 'Optical Tracking Camera',
+          specification: '120fps, sub-mm accuracy',
+          estimated_cost: 8500,
+        },
+        diagnostic_coverage_improvement: 20,
+      },
+    ],
+  },
 };
 
 function getSeverityColor(severity: string) {
@@ -90,39 +213,128 @@ function getTrendIcon(trend: string) {
 
 export default function SystemDetail() {
   const { systemId } = useParams();
+  const [system, setSystem] = useState<System | null>(null);
+  const [analysis, setAnalysis] = useState<typeof mockAnalysisData['1'] | null>(null);
+  const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedAnomaly, setSelectedAnomaly] = useState<string | null>(null);
 
+  useEffect(() => {
+    loadSystem();
+  }, [systemId]);
+
+  const loadSystem = async () => {
+    if (!systemId) return;
+    setLoading(true);
+    try {
+      const data = await systemsApi.get(systemId);
+      setSystem(data as System);
+      // Load analysis data (mock for now)
+      setAnalysis(mockAnalysisData[systemId] || mockAnalysisData['1']);
+    } catch (error) {
+      console.error('Failed to load system:', error);
+      // Use mock data based on systemId
+      const mockSystems: Record<string, System> = {
+        '1': {
+          id: '1',
+          name: 'Fleet Vehicle Alpha',
+          system_type: 'vehicle',
+          status: 'anomaly_detected',
+          health_score: 87.5,
+          created_at: '2024-01-01T00:00:00Z',
+        },
+        '2': {
+          id: '2',
+          name: 'Robot Arm Unit 7',
+          system_type: 'robot',
+          status: 'active',
+          health_score: 94.2,
+          created_at: '2024-01-02T00:00:00Z',
+        },
+        '3': {
+          id: '3',
+          name: 'Medical Scanner MRI-3',
+          system_type: 'medical_device',
+          status: 'active',
+          health_score: 99.1,
+          created_at: '2024-01-03T00:00:00Z',
+        },
+      };
+      setSystem(mockSystems[systemId] || mockSystems['1']);
+      setAnalysis(mockAnalysisData[systemId] || mockAnalysisData['1']);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAnalyze = async () => {
+    if (!systemId) return;
     setAnalyzing(true);
-    setTimeout(() => setAnalyzing(false), 2000);
+    try {
+      const result = await systemsApi.analyze(systemId);
+      // Update analysis with API response
+      if (result) {
+        setAnalysis({
+          health_score: result.health_score,
+          anomalies: result.anomalies || [],
+          engineering_margins: result.engineering_margins || [],
+          blind_spots: result.blind_spots || [],
+        });
+        if (system) {
+          setSystem({ ...system, health_score: result.health_score });
+        }
+      }
+    } catch (error) {
+      console.error('Analysis failed:', error);
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   const getProgressWidth = (marginPct: number) => {
     return (100 - marginPct) + '%';
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!system || !analysis) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-slate-400">System not found</p>
+        <Link to="/systems" className="text-primary-400 hover:text-primary-300">
+          Back to Systems
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
-        <Link to="/" className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
+        <Link to="/systems" className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
           <ArrowLeft className="w-5 h-5 text-slate-400" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">Fleet Vehicle Alpha</h1>
-          <p className="text-slate-400">System ID: {systemId}</p>
+          <h1 className="text-2xl font-bold text-white">{system.name}</h1>
+          <p className="text-slate-400 capitalize">{system.system_type.replace('_', ' ')} | ID: {systemId}</p>
         </div>
         <div className="flex items-center gap-3">
           <Link
-            to={'/systems/' + systemId + '/ingest'}
+            to={`/systems/${systemId}/ingest`}
             className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
           >
             <Upload className="w-4 h-4" />
             Ingest Data
           </Link>
           <Link
-            to={'/systems/' + systemId + '/chat'}
+            to={`/systems/${systemId}/chat`}
             className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
           >
             <MessageSquare className="w-4 h-4" />
@@ -149,10 +361,10 @@ export default function SystemDetail() {
           <div className="text-right">
             <div className={clsx(
               'text-5xl font-bold',
-              mockAnalysis.health_score >= 90 ? 'text-green-500' :
-              mockAnalysis.health_score >= 70 ? 'text-yellow-500' : 'text-red-500'
+              analysis.health_score >= 90 ? 'text-green-500' :
+              analysis.health_score >= 70 ? 'text-yellow-500' : 'text-red-500'
             )}>
-              {mockAnalysis.health_score}%
+              {analysis.health_score}%
             </div>
           </div>
         </div>
@@ -166,41 +378,49 @@ export default function SystemDetail() {
             <h2 className="text-lg font-semibold text-white">Detected Anomalies</h2>
           </div>
           <div className="p-4 space-y-4">
-            {mockAnalysis.anomalies.map((anomaly) => (
-              <div
-                key={anomaly.id}
-                className={clsx(
-                  'p-4 rounded-lg border-l-4 cursor-pointer transition-colors',
-                  getSeverityColor(anomaly.severity),
-                  selectedAnomaly === anomaly.id ? 'ring-2 ring-primary-500' : ''
-                )}
-                onClick={() => setSelectedAnomaly(
-                  selectedAnomaly === anomaly.id ? null : anomaly.id
-                )}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-medium text-white">{anomaly.title}</h3>
-                  <span className="text-sm font-medium text-slate-400">
-                    Impact: {anomaly.impact_score}
-                  </span>
-                </div>
-                <p className="text-sm text-slate-300 mb-3">{anomaly.description}</p>
-                
-                {selectedAnomaly === anomaly.id && (
-                  <div className="mt-4 pt-4 border-t border-slate-600">
-                    <h4 className="text-sm font-medium text-primary-400 mb-2">AI Analysis</h4>
-                    <p className="text-sm text-slate-300 mb-4">{anomaly.natural_language_explanation}</p>
-                    <h4 className="text-sm font-medium text-primary-400 mb-2">Recommendations</h4>
-                    {anomaly.recommendations.map((rec, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-sm">
-                        <ChevronRight className="w-4 h-4 text-primary-500" />
-                        <span className="text-slate-300">{rec.action}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {analysis.anomalies.length === 0 ? (
+              <div className="text-center py-8">
+                <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                <p className="text-slate-300 font-medium">No Anomalies Detected</p>
+                <p className="text-slate-500 text-sm">System is operating within normal parameters</p>
               </div>
-            ))}
+            ) : (
+              analysis.anomalies.map((anomaly) => (
+                <div
+                  key={anomaly.id}
+                  className={clsx(
+                    'p-4 rounded-lg border-l-4 cursor-pointer transition-colors',
+                    getSeverityColor(anomaly.severity),
+                    selectedAnomaly === anomaly.id ? 'ring-2 ring-primary-500' : ''
+                  )}
+                  onClick={() => setSelectedAnomaly(
+                    selectedAnomaly === anomaly.id ? null : anomaly.id
+                  )}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <h3 className="font-medium text-white">{anomaly.title}</h3>
+                    <span className="text-sm font-medium text-slate-400">
+                      Impact: {anomaly.impact_score}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-300 mb-3">{anomaly.description}</p>
+
+                  {selectedAnomaly === anomaly.id && (
+                    <div className="mt-4 pt-4 border-t border-slate-600">
+                      <h4 className="text-sm font-medium text-primary-400 mb-2">AI Analysis</h4>
+                      <p className="text-sm text-slate-300 mb-4">{anomaly.natural_language_explanation}</p>
+                      <h4 className="text-sm font-medium text-primary-400 mb-2">Recommendations</h4>
+                      {anomaly.recommendations.map((rec, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-sm">
+                          <ChevronRight className="w-4 h-4 text-primary-500" />
+                          <span className="text-slate-300">{rec.action}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -211,7 +431,7 @@ export default function SystemDetail() {
             <h2 className="text-lg font-semibold text-white">Engineering Margins</h2>
           </div>
           <div className="p-4 space-y-4">
-            {mockAnalysis.engineering_margins.map((margin, idx) => (
+            {analysis.engineering_margins.map((margin, idx) => (
               <div key={idx} className="p-4 bg-slate-900/50 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <div>
@@ -258,7 +478,7 @@ export default function SystemDetail() {
             <h2 className="text-lg font-semibold text-white">Blind Spots & Next-Gen Recommendations</h2>
           </div>
           <div className="p-4 grid grid-cols-2 gap-4">
-            {mockAnalysis.blind_spots.map((spot, idx) => (
+            {analysis.blind_spots.map((spot, idx) => (
               <div key={idx} className="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
                 <h3 className="font-medium text-white mb-2">{spot.title}</h3>
                 <p className="text-sm text-slate-300 mb-4">{spot.description}</p>

@@ -39,11 +39,15 @@ class DataStore:
         self.schemas_dir = self.data_dir / "schemas"
         self.schemas_dir.mkdir(exist_ok=True)
 
+        self.temp_dir = self.data_dir / "temp"
+        self.temp_dir.mkdir(exist_ok=True)
+
         # Thread lock for concurrent access
         self._lock = threading.RLock()
 
         # In-memory cache
         self._systems_cache: Dict[str, Dict] = {}
+        self._temp_analysis_cache: Dict[str, Dict] = {}  # Cache for temp analysis data
         self._load_systems()
 
     def _load_systems(self):
@@ -294,6 +298,111 @@ class DataStore:
             "field_count": len(df.columns),
             "fields": field_stats
         }
+
+    # ============ Temporary Analysis Storage ============
+
+    def store_temp_analysis(
+        self,
+        analysis_id: str,
+        records: List[Dict],
+        file_summaries: List[Dict],
+        discovered_fields: List[Dict],
+        file_records_map: Dict[str, List[Dict]],
+    ) -> None:
+        """Store temporary analysis data before system creation."""
+        with self._lock:
+            analysis_data = {
+                "analysis_id": analysis_id,
+                "records": records,
+                "file_summaries": file_summaries,
+                "discovered_fields": discovered_fields,
+                "file_records_map": file_records_map,
+                "created_at": datetime.utcnow().isoformat(),
+            }
+
+            # Store in memory cache
+            self._temp_analysis_cache[analysis_id] = analysis_data
+
+            # Also persist to disk
+            analysis_file = self.temp_dir / f"{analysis_id}.json"
+            with open(analysis_file, "w") as f:
+                json.dump(analysis_data, f, default=str)
+
+    def get_temp_analysis(self, analysis_id: str) -> Optional[Dict[str, Any]]:
+        """Get temporary analysis data."""
+        with self._lock:
+            # Check memory cache first
+            if analysis_id in self._temp_analysis_cache:
+                return self._temp_analysis_cache[analysis_id]
+
+            # Try loading from disk
+            analysis_file = self.temp_dir / f"{analysis_id}.json"
+            if analysis_file.exists():
+                with open(analysis_file) as f:
+                    data = json.load(f)
+                    self._temp_analysis_cache[analysis_id] = data
+                    return data
+
+            return None
+
+    def move_temp_to_system(self, analysis_id: str, system_id: str) -> bool:
+        """Move temporary analysis data to a system."""
+        with self._lock:
+            analysis_data = self.get_temp_analysis(analysis_id)
+            if not analysis_data:
+                return False
+
+            # Store each file's records as a separate source
+            file_records_map = analysis_data.get("file_records_map", {})
+            file_summaries = analysis_data.get("file_summaries", [])
+
+            for summary in file_summaries:
+                filename = summary.get("filename", "unknown")
+                records = file_records_map.get(filename, [])
+
+                if records:
+                    source_id = str(uuid.uuid4()) if 'uuid' in dir() else filename.replace(".", "_")
+                    import uuid as uuid_module
+                    source_id = str(uuid_module.uuid4())
+
+                    self.store_ingested_data(
+                        system_id=system_id,
+                        source_id=source_id,
+                        source_name=filename,
+                        records=records,
+                        discovered_schema={
+                            "fields": [f for f in analysis_data.get("discovered_fields", [])
+                                       if f.get("source_file") == filename],
+                            "relationships": summary.get("relationships", []),
+                        },
+                        metadata={"filename": filename}
+                    )
+
+            # Update system with schema
+            self.update_system(system_id, {
+                "discovered_schema": analysis_data.get("discovered_fields", []),
+                "status": "data_ingested"
+            })
+
+            # Clean up temp data
+            self.delete_temp_analysis(analysis_id)
+
+            return True
+
+    def delete_temp_analysis(self, analysis_id: str) -> bool:
+        """Delete temporary analysis data."""
+        with self._lock:
+            # Remove from cache
+            if analysis_id in self._temp_analysis_cache:
+                del self._temp_analysis_cache[analysis_id]
+
+            # Remove from disk
+            analysis_file = self.temp_dir / f"{analysis_id}.json"
+            if analysis_file.exists():
+                analysis_file.unlink()
+                return True
+
+            return False
 
 
 # Global data store instance

@@ -28,7 +28,7 @@ export const systemsApi = {
     return data;
   },
 
-  create: async (system: Partial<System>): Promise<System> => {
+  create: async (system: Partial<System> & { analysis_id?: string }): Promise<System> => {
     const { data } = await api.post('/systems/', system);
     return data;
   },

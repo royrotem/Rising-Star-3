@@ -116,6 +116,7 @@ export default function NewSystemWizard() {
   const [aiRecommendation, setAiRecommendation] = useState<AIRecommendation | null>(null);
 
   // Step 3: Discovered schema
+  const [analysisId, setAnalysisId] = useState<string | null>(null);  // Analysis session ID
   const [createdSystemId, setCreatedSystemId] = useState<string | null>(null);
   const [discoveredFields, setDiscoveredFields] = useState<DiscoveredField[]>([]);
   const [confirmationRequests, setConfirmationRequests] = useState<ConfirmationRequest[]>([]);
@@ -163,6 +164,9 @@ export default function NewSystemWizard() {
 
         const result = await response.json();
 
+        // Store analysis ID for later use
+        setAnalysisId(result.analysis_id);
+
         // Set AI recommendations
         setAiRecommendation(result.recommendation);
 
@@ -189,6 +193,7 @@ export default function NewSystemWizard() {
       }
     } else if (currentStep === 2) {
       // Create the system with user-confirmed settings
+      // Data is already analyzed and stored - just associate it with the new system
       setIsProcessing(true);
       setError(null);
       try {
@@ -197,13 +202,9 @@ export default function NewSystemWizard() {
           system_type: systemData.system_type,
           serial_number: systemData.serial_number || undefined,
           model: systemData.model || undefined,
+          analysis_id: analysisId || undefined,  // Associate pre-analyzed data
         });
         setCreatedSystemId(created.id);
-
-        // Now ingest all the uploaded files
-        for (const uf of uploadedFiles) {
-          await systemsApi.ingest(created.id, uf.file, uf.file.name);
-        }
 
         setCurrentStep(3);
       } catch (err) {

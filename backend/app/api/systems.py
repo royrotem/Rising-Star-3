@@ -35,6 +35,7 @@ class SystemCreate(BaseModel):
     serial_number: Optional[str] = None
     model: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = {}
+    analysis_id: Optional[str] = None  # If provided, associate pre-analyzed data
 
 
 class SystemResponse(BaseModel):
@@ -132,15 +133,21 @@ async def analyze_files(
 
     This endpoint processes all uploaded files, discovers relationships between them,
     and provides AI recommendations for system name, type, and description.
+    Records are stored temporarily and can be associated with a system using the analysis_id.
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded")
 
+    # Generate analysis session ID
+    analysis_id = str(uuid.uuid4())
+
     all_discovered_fields = []
     all_confirmation_requests = []
     all_metadata = []  # Collect metadata from all files
+    all_records = []  # Store all records for later use
     total_records = 0
     file_summaries = []
+    file_records_map = {}  # Map filename to records
 
     # Process each file
     for file in files:
@@ -151,6 +158,11 @@ async def analyze_files(
                 system_id="temp_analysis",
                 source_name=file.filename,
             )
+
+            # Store records for this file
+            records = result.get("sample_records", [])
+            file_records_map[file.filename] = records
+            all_records.extend(records)
 
             # Add source file info to each field
             for field in result.get("discovered_fields", []):
@@ -172,6 +184,7 @@ async def analyze_files(
                 "fields": [f.get("name", "") for f in result.get("discovered_fields", [])],
                 "field_types": {f.get("name", ""): f.get("inferred_type", "") for f in result.get("discovered_fields", [])},
                 "metadata": metadata_info,  # Include metadata in file summary
+                "relationships": result.get("relationships", []),
             })
 
             # Reset file position for potential re-reading
@@ -180,6 +193,15 @@ async def analyze_files(
         except Exception as e:
             print(f"Error processing file {file.filename}: {e}")
             continue
+
+    # Store the analyzed data temporarily
+    data_store.store_temp_analysis(
+        analysis_id=analysis_id,
+        records=all_records,
+        file_summaries=file_summaries,
+        discovered_fields=all_discovered_fields,
+        file_records_map=file_records_map,
+    )
 
     # === SECOND PASS: Enrich fields with combined context from all files ===
     # Collect all field descriptions from all metadata
@@ -206,6 +228,7 @@ async def analyze_files(
 
     return {
         "status": "success",
+        "analysis_id": analysis_id,  # Use this to associate data with a system
         "files_analyzed": len(files),
         "total_records": total_records,
         "discovered_fields": all_discovered_fields,
@@ -456,7 +479,10 @@ def _extract_metadata_insights(metadata_list: List[Dict]) -> Dict[str, Any]:
 
 @router.post("/", response_model=SystemResponse)
 async def create_system(system: SystemCreate):
-    """Create a new monitored system."""
+    """Create a new monitored system.
+
+    If analysis_id is provided, the pre-analyzed data will be associated with this system.
+    """
     system_id = str(uuid.uuid4())
 
     system_data = {
@@ -475,6 +501,13 @@ async def create_system(system: SystemCreate):
     }
 
     created_system = data_store.create_system(system_data)
+
+    # If analysis_id provided, move pre-analyzed data to this system
+    if system.analysis_id:
+        moved = data_store.move_temp_to_system(system.analysis_id, system_id)
+        if moved:
+            # Refresh system data after moving
+            created_system = data_store.get_system(system_id)
 
     return SystemResponse(**created_system)
 

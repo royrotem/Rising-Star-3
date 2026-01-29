@@ -258,12 +258,17 @@ class DataStore:
 
     def get_system_statistics(self, system_id: str) -> Dict[str, Any]:
         """Get statistics for a system's data."""
-        records = self.get_ingested_records(system_id)
         sources = self.get_data_sources(system_id)
+
+        # Get actual total record count from source metadata (not limited)
+        total_records = sum(s.get("record_count", 0) for s in sources)
+
+        # Get records for field statistics (limited sample is fine for stats)
+        records = self.get_ingested_records(system_id, limit=10000)
 
         if not records:
             return {
-                "total_records": 0,
+                "total_records": total_records,
                 "total_sources": len(sources),
                 "field_count": 0,
                 "fields": []
@@ -293,7 +298,7 @@ class DataStore:
             field_stats.append(stat)
 
         return {
-            "total_records": len(records),
+            "total_records": total_records,  # Use actual count from metadata, not limited records
             "total_sources": len(sources),
             "field_count": len(df.columns),
             "fields": field_stats

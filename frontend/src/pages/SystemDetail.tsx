@@ -49,15 +49,21 @@ interface AnalysisData {
     severity: string;
     title: string;
     description: string;
+    affected_fields?: string[];
     natural_language_explanation: string;
+    possible_causes?: string[];
     recommendations: Array<{ type: string; priority: string; action: string }>;
     impact_score: number;
+    confidence?: number;
+    value?: Record<string, unknown>;
+    expected_range?: [number, number];
   }>;
   engineering_margins: Array<{
     component: string;
     parameter: string;
     current_value: number;
     design_limit: number;
+    lower_limit?: number;
     margin_percentage: number;
     trend: string;
     safety_critical: boolean;
@@ -68,7 +74,19 @@ interface AnalysisData {
     recommended_sensor?: { type: string; specification: string; estimated_cost: number } | null;
     diagnostic_coverage_improvement: number;
   }>;
+  insights?: string[];
   insights_summary?: string;
+  trend_analysis?: Record<string, {
+    direction: string;
+    change_percentage: number;
+    volatility: string;
+  }>;
+  recommendations?: Array<{
+    type: string;
+    priority: string;
+    action: string;
+    source_anomaly?: string;
+  }>;
 }
 
 function getSeverityColor(severity: string) {
@@ -294,7 +312,7 @@ export default function SystemDetail() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-white mb-1">System Health</h2>
-              <p className="text-slate-400 text-sm">
+              <p className="text-slate-400 text-sm whitespace-pre-line">
                 {analysis.insights_summary || 'Run analysis to get detailed health insights'}
               </p>
             </div>
@@ -305,12 +323,44 @@ export default function SystemDetail() {
                   analysis.health_score >= 90 ? 'text-green-500' :
                   analysis.health_score >= 70 ? 'text-yellow-500' : 'text-red-500'
                 )}>
-                  {analysis.health_score}%
+                  {analysis.health_score.toFixed(0)}%
                 </div>
               ) : (
                 <div className="text-3xl text-slate-500">--</div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Key Insights */}
+      {analysis && analysis.insights && analysis.insights.length > 0 && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-yellow-500" />
+            Key Insights
+          </h2>
+          <div className="space-y-2">
+            {analysis.insights.map((insight, idx) => (
+              <div key={idx} className={clsx(
+                'p-3 rounded-lg flex items-start gap-3',
+                insight.toLowerCase().includes('urgent') || insight.toLowerCase().includes('critical')
+                  ? 'bg-red-500/10 border border-red-500/30'
+                  : insight.toLowerCase().includes('warning') || insight.toLowerCase().includes('high')
+                  ? 'bg-orange-500/10 border border-orange-500/30'
+                  : 'bg-slate-700/50'
+              )}>
+                <AlertCircle className={clsx(
+                  'w-5 h-5 mt-0.5',
+                  insight.toLowerCase().includes('urgent') || insight.toLowerCase().includes('critical')
+                    ? 'text-red-400'
+                    : insight.toLowerCase().includes('warning') || insight.toLowerCase().includes('high')
+                    ? 'text-orange-400'
+                    : 'text-slate-400'
+                )} />
+                <p className="text-sm text-slate-300">{insight}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -357,16 +407,70 @@ export default function SystemDetail() {
                   <p className="text-sm text-slate-300 mb-3">{anomaly.description}</p>
 
                   {selectedAnomaly === anomaly.id && (
-                    <div className="mt-4 pt-4 border-t border-slate-600">
-                      <h4 className="text-sm font-medium text-primary-400 mb-2">AI Analysis</h4>
-                      <p className="text-sm text-slate-300 mb-4">{anomaly.natural_language_explanation}</p>
-                      <h4 className="text-sm font-medium text-primary-400 mb-2">Recommendations</h4>
-                      {anomaly.recommendations.map((rec, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-sm">
-                          <ChevronRight className="w-4 h-4 text-primary-500" />
-                          <span className="text-slate-300">{rec.action}</span>
+                    <div className="mt-4 pt-4 border-t border-slate-600 space-y-4">
+                      {/* Confidence indicator */}
+                      {anomaly.confidence && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">Confidence:</span>
+                          <div className="flex-1 bg-slate-700 rounded-full h-2 max-w-[100px]">
+                            <div
+                              className="bg-primary-500 h-2 rounded-full"
+                              style={{ width: `${anomaly.confidence * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-slate-400">{(anomaly.confidence * 100).toFixed(0)}%</span>
                         </div>
-                      ))}
+                      )}
+
+                      {/* AI Explanation */}
+                      <div>
+                        <h4 className="text-sm font-medium text-primary-400 mb-2 flex items-center gap-2">
+                          <Lightbulb className="w-4 h-4" />
+                          AI Analysis
+                        </h4>
+                        <p className="text-sm text-slate-300 leading-relaxed">{anomaly.natural_language_explanation}</p>
+                      </div>
+
+                      {/* Possible Causes */}
+                      {anomaly.possible_causes && anomaly.possible_causes.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-orange-400 mb-2 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" />
+                            Possible Causes
+                          </h4>
+                          <ul className="space-y-1">
+                            {anomaly.possible_causes.map((cause, idx) => (
+                              <li key={idx} className="flex items-start gap-2 text-sm">
+                                <span className="text-orange-400 mt-1">•</span>
+                                <span className="text-slate-300">{cause}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Recommendations */}
+                      {anomaly.recommendations && anomaly.recommendations.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium text-green-400 mb-2 flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Recommended Actions
+                          </h4>
+                          {anomaly.recommendations.map((rec, idx) => (
+                            <div key={idx} className="flex items-start gap-2 text-sm mb-2">
+                              <span className={clsx(
+                                'px-1.5 py-0.5 rounded text-xs font-medium',
+                                rec.priority === 'immediate' || rec.priority === 'high' ? 'bg-red-500/20 text-red-400' :
+                                rec.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                                'bg-slate-500/20 text-slate-400'
+                              )}>
+                                {rec.priority}
+                              </span>
+                              <span className="text-slate-300">{rec.action}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

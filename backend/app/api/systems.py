@@ -15,6 +15,7 @@ from ..services.ingestion import IngestionService
 from ..services.anomaly_detection import AnomalyDetectionService
 from ..services.root_cause import RootCauseService
 from ..services.data_store import data_store
+from ..services.analysis_engine import analysis_engine
 
 
 router = APIRouter(prefix="/systems", tags=["Systems"])
@@ -721,143 +722,77 @@ async def analyze_system(
     request: AnalysisRequest,
 ):
     """
-    Run comprehensive analysis on a system.
+    Run comprehensive AI-powered analysis on a system.
 
-    This triggers the full agent workforce to analyze the system:
-    - Anomaly detection
-    - Root cause analysis
-    - Blind spot detection
-    - Engineering margin calculation
+    This triggers advanced multi-layered analysis:
+    - Statistical anomaly detection (Z-score, IQR)
+    - Threshold-based detection with domain knowledge
+    - Trend analysis and pattern detection
+    - Correlation analysis
+    - Rate of change monitoring
+    - Natural language explanations
+    - Root cause suggestions
+    - Actionable recommendations
     """
     system = data_store.get_system(system_id)
     if not system:
         raise HTTPException(status_code=404, detail="System not found")
 
-    # Get real data if available
-    records = data_store.get_ingested_records(system_id, limit=10000)
+    # Get data
+    records = data_store.get_ingested_records(system_id, limit=50000)
     sources = data_store.get_data_sources(system_id)
+    discovered_schema = system.get("discovered_schema", [])
 
-    # If we have real data, analyze it
-    if records:
-        import pandas as pd
-        df = pd.DataFrame(records)
+    # Run advanced analysis
+    result = await analysis_engine.analyze(
+        system_id=system_id,
+        system_type=system.get("system_type", "industrial"),
+        records=records,
+        discovered_schema=discovered_schema,
+        metadata=system.get("metadata", {}),
+    )
 
-        # Calculate actual statistics
-        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+    # Convert anomalies to dict format for JSON serialization
+    anomalies = []
+    for a in result.anomalies:
+        anomalies.append({
+            "id": a.id,
+            "type": a.anomaly_type.value,
+            "severity": a.severity.value,
+            "title": a.title,
+            "description": a.description,
+            "affected_fields": [a.field_name] + a.related_fields,
+            "natural_language_explanation": a.natural_language_explanation,
+            "possible_causes": a.possible_causes,
+            "recommendations": a.recommendations,
+            "impact_score": a.impact_score,
+            "confidence": a.confidence,
+            "value": a.value,
+            "expected_range": a.expected_range,
+        })
 
-        anomalies = []
-        engineering_margins = []
-        blind_spots = []
-
-        # Simple anomaly detection on real data
-        for col in numeric_cols[:5]:  # Limit to first 5 numeric columns
-            mean = df[col].mean()
-            std = df[col].std()
-
-            if std > 0:
-                # Find outliers (values > 2 std from mean)
-                outliers = df[abs(df[col] - mean) > 2 * std]
-                if len(outliers) > 0:
-                    anomalies.append({
-                        "id": str(uuid.uuid4()),
-                        "type": "statistical_outlier",
-                        "severity": "medium" if len(outliers) < len(df) * 0.05 else "high",
-                        "title": f"Outliers detected in {col}",
-                        "description": f"Found {len(outliers)} values that deviate significantly from the mean ({mean:.2f})",
-                        "affected_fields": [col],
-                        "natural_language_explanation": (
-                            f"The field '{col}' has {len(outliers)} data points that are more than "
-                            f"2 standard deviations from the mean value of {mean:.2f}. "
-                            f"This may indicate sensor errors, unusual operating conditions, or actual anomalies."
-                        ),
-                        "recommendations": [
-                            {
-                                "type": "investigation",
-                                "priority": "high",
-                                "action": f"Review the {len(outliers)} outlier records for {col}",
-                            },
-                        ],
-                        "impact_score": min(100, len(outliers) / len(df) * 1000),
-                    })
-
-                # Calculate engineering margins
-                current_max = df[col].max()
-                if mean > 0:
-                    design_limit = mean + 4 * std  # Assume 4-sigma design limit
-                    margin = (design_limit - current_max) / design_limit * 100
-                    engineering_margins.append({
-                        "component": col,
-                        "parameter": col,
-                        "current_value": float(current_max),
-                        "design_limit": float(design_limit),
-                        "margin_percentage": float(margin),
-                        "trend": "stable",
-                        "safety_critical": False,
-                    })
-
-        # Identify blind spots (missing data)
-        missing_cols = [col for col in df.columns if df[col].isna().sum() > len(df) * 0.1]
-        if missing_cols:
-            blind_spots.append({
-                "title": "Missing data detected",
-                "description": f"Fields {', '.join(missing_cols)} have more than 10% missing values",
-                "recommended_sensor": None,
-                "diagnostic_coverage_improvement": 15,
-            })
-
-        # Calculate health score based on anomalies
-        health_score = 100 - (len(anomalies) * 5)
-        health_score = max(50, min(100, health_score))
-
-        analysis_result = {
-            "system_id": system_id,
-            "timestamp": datetime.utcnow().isoformat(),
-            "health_score": health_score,
-            "data_analyzed": {
-                "record_count": len(records),
-                "source_count": len(sources),
-                "field_count": len(df.columns),
-            },
-            "anomalies": anomalies,
-            "engineering_margins": engineering_margins,
-            "blind_spots": blind_spots,
-            "insights_summary": (
-                f"Analyzed {len(records)} records across {len(df.columns)} fields. "
-                f"Found {len(anomalies)} potential anomalies. "
-                f"System health score: {health_score}%."
-            ),
-        }
-
-    else:
-        # No data - return guidance
-        analysis_result = {
-            "system_id": system_id,
-            "timestamp": datetime.utcnow().isoformat(),
-            "health_score": None,
-            "data_analyzed": {
-                "record_count": 0,
-                "source_count": 0,
-                "field_count": 0,
-            },
-            "anomalies": [],
-            "engineering_margins": [],
-            "blind_spots": [
-                {
-                    "title": "No data ingested",
-                    "description": "Upload telemetry data to enable analysis",
-                    "recommended_sensor": None,
-                    "diagnostic_coverage_improvement": 100,
-                }
-            ],
-            "insights_summary": (
-                "No data has been ingested for this system yet. "
-                "Upload telemetry files to enable anomaly detection and analysis."
-            ),
-        }
+    analysis_result = {
+        "system_id": system_id,
+        "timestamp": result.analyzed_at,
+        "health_score": result.health_score,
+        "data_analyzed": {
+            "record_count": len(records),
+            "source_count": len(sources),
+            "field_count": len(set(f.get("name", "") for f in discovered_schema)) if discovered_schema else 0,
+        },
+        "anomalies": anomalies,
+        "engineering_margins": result.engineering_margins,
+        "blind_spots": result.blind_spots,
+        "correlation_analysis": result.correlation_matrix,
+        "trend_analysis": result.trend_analysis,
+        "insights": result.insights,
+        "insights_summary": result.summary,
+        "recommendations": result.recommendations,
+    }
 
     # Update system health score
-    if analysis_result.get("health_score"):
-        data_store.update_system(system_id, {"health_score": analysis_result["health_score"]})
+    if result.health_score:
+        data_store.update_system(system_id, {"health_score": result.health_score})
 
     return analysis_result
 

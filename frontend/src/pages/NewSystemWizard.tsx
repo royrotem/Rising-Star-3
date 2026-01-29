@@ -56,6 +56,7 @@ interface DiscoveredField {
 }
 
 interface ConfirmationRequest {
+  type?: 'field_confirmation' | 'relationship_confirmation';
   field_name?: string;
   question: string;
   inferred_unit?: string | null;
@@ -125,6 +126,11 @@ export default function NewSystemWizard() {
   // Step 4: Confirmations
   const [confirmations, setConfirmations] = useState<Record<string, { confirmed: boolean; correctedValue?: string }>>({});
 
+  // Get only field confirmations (not relationship confirmations)
+  const fieldConfirmations = confirmationRequests.filter(
+    (req) => req.type === 'field_confirmation' || req.field_name
+  );
+
   // Navigation
   const canProceed = () => {
     switch (currentStep) {
@@ -135,7 +141,7 @@ export default function NewSystemWizard() {
       case 3:
         return discoveredFields.length > 0;
       case 4:
-        return Object.keys(confirmations).length === confirmationRequests.length;
+        return fieldConfirmations.length === 0 || Object.keys(confirmations).length === fieldConfirmations.length;
       default:
         return true;
     }
@@ -561,7 +567,7 @@ export default function NewSystemWizard() {
             </div>
 
             <div className="space-y-4">
-              {confirmationRequests.map((req, idx) => {
+              {fieldConfirmations.map((req, idx) => {
                 const fieldName = req.field_name || `field_${idx}`;
                 return (
                   <div
@@ -629,13 +635,13 @@ export default function NewSystemWizard() {
               })}
             </div>
 
-            {confirmationRequests.length > 0 && (
+            {fieldConfirmations.length > 0 && (
               <div className="text-center text-sm text-slate-400">
-                {Object.keys(confirmations).length} of {confirmationRequests.length} fields confirmed
+                {Object.keys(confirmations).length} of {fieldConfirmations.length} fields confirmed
               </div>
             )}
 
-            {confirmationRequests.length === 0 && (
+            {fieldConfirmations.length === 0 && (
               <div className="text-center py-8">
                 <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
                 <p className="text-slate-300 font-medium">No confirmations needed</p>

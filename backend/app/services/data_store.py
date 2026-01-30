@@ -7,10 +7,14 @@ In production, this would use PostgreSQL/TimescaleDB.
 
 import json
 import os
-from typing import Dict, List, Any, Optional
+import shutil
+import threading
+import uuid
 from datetime import datetime
 from pathlib import Path
-import threading
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
 
 
 class DataStore:
@@ -20,7 +24,6 @@ class DataStore:
     """
 
     def __init__(self, data_dir: str = None):
-        import os
         if data_dir is None:
             # Use /app/data in Docker, ./data locally
             data_dir = os.environ.get("DATA_DIR", "/app/data")
@@ -131,7 +134,6 @@ class DataStore:
             # Remove ingested data
             system_data_dir = self.ingested_dir / system_id
             if system_data_dir.exists():
-                import shutil
                 shutil.rmtree(system_data_dir)
 
             return True
@@ -274,8 +276,6 @@ class DataStore:
                 "fields": []
             }
 
-        # Calculate field statistics
-        import pandas as pd
         df = pd.DataFrame(records)
 
         field_stats = []
@@ -366,9 +366,7 @@ class DataStore:
                 records = file_records_map.get(filename, [])
 
                 if records:
-                    source_id = str(uuid.uuid4()) if 'uuid' in dir() else filename.replace(".", "_")
-                    import uuid as uuid_module
-                    source_id = str(uuid_module.uuid4())
+                    source_id = str(uuid.uuid4())
 
                     self.store_ingested_data(
                         system_id=system_id,

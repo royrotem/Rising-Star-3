@@ -36,4 +36,3 @@ structlog==24.1.0
 
 # AI / LLM
 anthropic==0.42.0
-httpx==0.26.0

@@ -1,8 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Cpu, 
-  MessageSquare, 
+import {
+  LayoutDashboard,
+  Cpu,
   Settings,
   Activity,
   Zap

@@ -6,14 +6,16 @@ schema discovery using AI agents.
 """
 
 import asyncio
+import hashlib
 import json
-import pandas as pd
-import numpy as np
-from typing import Dict, List, Any, Optional, BinaryIO
+import re
+import struct
 from dataclasses import dataclass
 from datetime import datetime
-import hashlib
-import struct
+from typing import Any, BinaryIO, Dict, List, Optional
+
+import numpy as np
+import pandas as pd
 
 
 @dataclass
@@ -195,7 +197,7 @@ class IngestionService:
                     'timestamp': offset  # Placeholder
                 })
                 offset += 5 + dlc
-            except:
+            except (struct.error, IndexError):
                 offset += 1
 
         schema = {'can_id': 'hex', 'dlc': 'int', 'data': 'bytes'}
@@ -314,7 +316,6 @@ class IngestionService:
         Deep scan all content to find metadata/description fields.
         Scans ALL values in ALL columns to find dataset documentation.
         """
-        import re
 
         result = {
             'field_descriptions': {},
@@ -386,7 +387,6 @@ class IngestionService:
         Deep extraction of field descriptions from metadata text.
         Uses multiple strategies to find field meanings.
         """
-        import re
         descriptions = {}
 
         # Normalize text for matching
@@ -456,7 +456,6 @@ class IngestionService:
 
     def _extract_purpose(self, text: str) -> str:
         """Extract the purpose/use case from dataset description."""
-        import re
 
         purpose_patterns = [
             r'(?:designed to|used for|intended for|suitable for|supports?)\s+([^.]+\.)',

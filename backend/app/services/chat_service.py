@@ -309,13 +309,19 @@ class ChatService:
                 "data": {"type": "error", "error": str(e)},
             }
 
+    # ── Comprehensive fallback engine (no API key needed) ───────────
+
     def _fallback_response(
         self,
         user_message: str,
         system: Dict,
         records: List[Dict],
     ) -> Dict[str, Any]:
-        """Keyword-based fallback when no API key is available."""
+        """
+        Comprehensive data-aware response engine — works entirely without
+        an API key.  Uses pandas/numpy to compute real statistics, detect
+        outliers, summarise health, find correlations, and more.
+        """
         query = user_message.lower()
 
         if not records:
@@ -332,70 +338,454 @@ class ChatService:
         df = pd.DataFrame(records)
         numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
 
+        # ── Check if asking about a specific field ────────────────
+        target_field = self._detect_field_mention(query, df.columns.tolist())
+
+        # ── Route to the best handler ─────────────────────────────
+        if any(w in query for w in ["anomal", "problem", "issue", "wrong", "unusual", "strange", "weird", "outlier"]):
+            return self._fb_anomalies(df, numeric_cols, system)
+
+        if any(w in query for w in ["health", "status", "overview", "summar", "how is", "how's"]):
+            return self._fb_health_summary(df, numeric_cols, system)
+
+        if any(w in query for w in ["correlat", "relation", "connect", "between"]):
+            return self._fb_correlations(df, numeric_cols)
+
+        if any(w in query for w in ["recommend", "suggest", "what should", "action", "improve", "fix"]):
+            return self._fb_recommendations(df, numeric_cols, system)
+
+        if any(w in query for w in ["variance", "variab", "volatile", "stable", "stability", "deviation"]):
+            return self._fb_variance(df, numeric_cols)
+
+        if any(w in query for w in ["trend", "increas", "decreas", "direction", "going up", "going down", "change"]):
+            return self._fb_trends(df, numeric_cols)
+
+        if any(w in query for w in ["distribut", "histogram", "spread", "range"]):
+            return self._fb_distribution(df, numeric_cols, target_field)
+
         if any(w in query for w in ["average", "mean"]):
-            stats = {col: round(float(df[col].mean()), 4) for col in numeric_cols}
-            lines = ["Here are the **average values** for numeric fields:\n"]
-            for col, val in stats.items():
-                lines.append(f"- **{col}**: {val}")
-            return {
-                "content": "\n".join(lines),
-                "ai_powered": False,
-                "data": {"type": "statistics", "statistics": _sanitize(stats)},
-            }
+            return self._fb_stat(df, numeric_cols, "mean", target_field)
 
         if any(w in query for w in ["max", "maximum", "highest", "peak"]):
-            stats = {col: round(float(df[col].max()), 4) for col in numeric_cols}
-            lines = ["Here are the **maximum values** for numeric fields:\n"]
-            for col, val in stats.items():
-                lines.append(f"- **{col}**: {val}")
-            return {
-                "content": "\n".join(lines),
-                "ai_powered": False,
-                "data": {"type": "statistics", "statistics": _sanitize(stats)},
-            }
+            return self._fb_stat(df, numeric_cols, "max", target_field)
 
         if any(w in query for w in ["min", "minimum", "lowest"]):
-            stats = {col: round(float(df[col].min()), 4) for col in numeric_cols}
-            lines = ["Here are the **minimum values** for numeric fields:\n"]
-            for col, val in stats.items():
-                lines.append(f"- **{col}**: {val}")
-            return {
-                "content": "\n".join(lines),
-                "ai_powered": False,
-                "data": {"type": "statistics", "statistics": _sanitize(stats)},
-            }
+            return self._fb_stat(df, numeric_cols, "min", target_field)
 
-        if any(w in query for w in ["show", "find", "list", "get", "data"]):
-            return {
-                "content": (
-                    f"The system has **{len(df)} records** across "
-                    f"**{len(df.columns)} fields**: {', '.join(df.columns[:15])}.\n\n"
-                    "You can ask me about averages, maximums, minimums, or "
-                    "specific fields."
-                ),
-                "ai_powered": False,
-                "data": {
-                    "type": "data_overview",
-                    "record_count": len(df),
-                    "fields": list(df.columns),
-                },
-            }
+        if any(w in query for w in ["std", "standard dev"]):
+            return self._fb_stat(df, numeric_cols, "std", target_field)
 
-        # Generic fallback
+        if any(w in query for w in ["median"]):
+            return self._fb_stat(df, numeric_cols, "median", target_field)
+
+        if target_field:
+            return self._fb_field_detail(df, target_field, numeric_cols)
+
+        if any(w in query for w in ["field", "column", "show", "find", "list", "get", "data", "what do you know", "what can"]):
+            return self._fb_data_overview(df, numeric_cols, system)
+
+        # Generic fallback — still useful
+        return self._fb_data_overview(df, numeric_cols, system)
+
+    # ── Fallback handler: anomalies ──────────────────────────────
+
+    def _fb_anomalies(self, df: pd.DataFrame, numeric_cols: list, system: Dict) -> Dict:
+        lines = ["Here are the **anomalies** I detected by analyzing the data:\n"]
+        findings = []
+
+        for col in numeric_cols:
+            series = df[col].dropna()
+            if len(series) < 4:
+                continue
+            mean, std = float(series.mean()), float(series.std())
+            if std == 0:
+                continue
+
+            # Z-score outliers (|z| > 2.5)
+            z_scores = ((series - mean) / std).abs()
+            outlier_count = int((z_scores > 2.5).sum())
+            if outlier_count > 0:
+                worst = float(series[z_scores.idxmax()])
+                z_val = float(z_scores.max())
+                sev = "critical" if z_val > 4 else "high" if z_val > 3 else "medium"
+                lines.append(
+                    f"**{col}** — {outlier_count} outlier{'s' if outlier_count > 1 else ''} detected "
+                    f"(worst value: **{worst:.4g}**, z-score: {z_val:.1f}, severity: {sev})"
+                )
+                findings.append({"field": col, "outliers": outlier_count, "severity": sev, "max_z": round(z_val, 2)})
+
+            # Coefficient of variation
+            cv = std / abs(mean) if mean != 0 else 0
+            if cv > 0.5 and outlier_count == 0:
+                lines.append(
+                    f"**{col}** — High variability (CV = {cv:.2f}), may indicate "
+                    f"mixed operating modes or instability"
+                )
+                findings.append({"field": col, "type": "high_variance", "cv": round(cv, 2)})
+
+        if not findings:
+            lines.append("No significant statistical anomalies detected — the data looks healthy.")
+
+        lines.append(f"\nSystem health score: **{system.get('health_score', 'N/A')}**")
         return {
-            "content": (
-                f"System **{system.get('name', 'Unknown')}** has "
-                f"**{len(df)} records** with **{len(df.columns)} fields**. "
-                f"Health score: **{system.get('health_score', 'N/A')}**.\n\n"
-                "Try asking:\n"
-                "- \"What is the average temperature?\"\n"
-                "- \"Show me the maximum values\"\n"
-                "- \"What fields are available?\"\n\n"
-                "*For AI-powered answers, configure your API key in Settings.*"
-            ),
+            "content": "\n".join(lines),
             "ai_powered": False,
-            "data": {"type": "general"},
+            "data": {"type": "anomaly_scan", "findings": _sanitize(findings)},
         }
+
+    # ── Fallback handler: health summary ─────────────────────────
+
+    def _fb_health_summary(self, df: pd.DataFrame, numeric_cols: list, system: Dict) -> Dict:
+        lines = [f"**System Health Summary — {system.get('name', 'Unknown')}**\n"]
+        lines.append(f"- **Status**: {system.get('status', 'active')}")
+        lines.append(f"- **Health Score**: {system.get('health_score', 'N/A')}")
+        lines.append(f"- **Records**: {len(df):,}")
+        lines.append(f"- **Fields**: {len(df.columns)} ({len(numeric_cols)} numeric)\n")
+
+        # Quick stats for each numeric field
+        if numeric_cols:
+            lines.append("**Numeric field summary**:\n")
+            lines.append("| Field | Mean | Std | Min | Max |")
+            lines.append("|-------|------|-----|-----|-----|")
+            for col in numeric_cols[:12]:
+                s = df[col].dropna()
+                if len(s) == 0:
+                    continue
+                lines.append(
+                    f"| {col} | {float(s.mean()):.4g} | {float(s.std()):.4g} "
+                    f"| {float(s.min()):.4g} | {float(s.max()):.4g} |"
+                )
+
+        # Warnings
+        warnings = []
+        for col in numeric_cols:
+            s = df[col].dropna()
+            if len(s) < 2:
+                continue
+            cv = float(s.std()) / abs(float(s.mean())) if float(s.mean()) != 0 else 0
+            if cv > 0.5:
+                warnings.append(f"**{col}** has high variability (CV={cv:.2f})")
+            null_pct = df[col].isna().sum() / len(df) * 100
+            if null_pct > 10:
+                warnings.append(f"**{col}** has {null_pct:.0f}% missing values")
+
+        if warnings:
+            lines.append("\n**Warnings**:")
+            for w in warnings[:8]:
+                lines.append(f"- {w}")
+
+        return {
+            "content": "\n".join(lines),
+            "ai_powered": False,
+            "data": {"type": "health_summary"},
+        }
+
+    # ── Fallback handler: correlations ───────────────────────────
+
+    def _fb_correlations(self, df: pd.DataFrame, numeric_cols: list) -> Dict:
+        if len(numeric_cols) < 2:
+            return {
+                "content": "Need at least 2 numeric fields to compute correlations.",
+                "ai_powered": False,
+                "data": {"type": "correlation"},
+            }
+
+        corr = df[numeric_cols].corr()
+        lines = ["**Field Correlations** (|r| > 0.5):\n"]
+        pairs = []
+        seen = set()
+        for i, c1 in enumerate(numeric_cols):
+            for j, c2 in enumerate(numeric_cols):
+                if i >= j:
+                    continue
+                r = float(corr.loc[c1, c2])
+                if math.isnan(r):
+                    continue
+                key = tuple(sorted([c1, c2]))
+                if key in seen:
+                    continue
+                seen.add(key)
+                if abs(r) > 0.5:
+                    direction = "positive" if r > 0 else "negative"
+                    strength = "strong" if abs(r) > 0.8 else "moderate"
+                    lines.append(f"- **{c1}** ↔ **{c2}**: r = {r:.3f} ({strength} {direction})")
+                    pairs.append({"field1": c1, "field2": c2, "r": round(r, 3), "strength": strength})
+
+        if not pairs:
+            lines.append("No strong correlations found (all |r| < 0.5).")
+
+        return {
+            "content": "\n".join(lines),
+            "ai_powered": False,
+            "data": {"type": "correlation", "pairs": _sanitize(pairs)},
+        }
+
+    # ── Fallback handler: recommendations ────────────────────────
+
+    def _fb_recommendations(self, df: pd.DataFrame, numeric_cols: list, system: Dict) -> Dict:
+        recs = []
+
+        for col in numeric_cols:
+            s = df[col].dropna()
+            if len(s) < 4:
+                continue
+            mean, std = float(s.mean()), float(s.std())
+            if std == 0:
+                continue
+
+            cv = std / abs(mean) if mean != 0 else 0
+            outlier_count = int(((s - mean).abs() / std > 2.5).sum())
+
+            if outlier_count > len(s) * 0.05:
+                recs.append(
+                    f"**Investigate {col}**: {outlier_count} outliers detected "
+                    f"({outlier_count/len(s)*100:.1f}% of records). Check sensor calibration or process limits."
+                )
+            if cv > 1.0:
+                recs.append(
+                    f"**Stabilize {col}**: Very high variability (CV={cv:.2f}). "
+                    f"Consider tighter process controls or identifying distinct operating modes."
+                )
+            null_pct = df[col].isna().sum() / len(df) * 100
+            if null_pct > 20:
+                recs.append(
+                    f"**Fix data gaps in {col}**: {null_pct:.0f}% missing values. "
+                    f"Check data pipeline and sensor connectivity."
+                )
+
+        if not recs:
+            recs.append("No urgent recommendations — the data looks healthy overall.")
+
+        health = system.get("health_score")
+        if health and health < 70:
+            recs.insert(0, f"**Priority**: Health score is **{health}** — run a full analysis to identify root causes.")
+
+        lines = ["**Recommendations for this system**:\n"]
+        for i, r in enumerate(recs[:10], 1):
+            lines.append(f"{i}. {r}")
+
+        return {
+            "content": "\n".join(lines),
+            "ai_powered": False,
+            "data": {"type": "recommendations"},
+        }
+
+    # ── Fallback handler: variance / stability ───────────────────
+
+    def _fb_variance(self, df: pd.DataFrame, numeric_cols: list) -> Dict:
+        lines = ["**Field Variability Analysis**:\n"]
+        items = []
+        for col in numeric_cols:
+            s = df[col].dropna()
+            if len(s) < 2 or float(s.mean()) == 0:
+                continue
+            cv = float(s.std()) / abs(float(s.mean()))
+            stability = "stable" if cv < 0.1 else "moderate" if cv < 0.3 else "variable" if cv < 0.5 else "highly variable"
+            items.append((col, cv, stability))
+
+        items.sort(key=lambda x: x[1], reverse=True)
+        for col, cv, stability in items[:15]:
+            marker = "" if cv < 0.5 else " ⚠"
+            lines.append(f"- **{col}**: CV = {cv:.3f} ({stability}){marker}")
+
+        if not items:
+            lines.append("No numeric fields with computable variance.")
+
+        return {
+            "content": "\n".join(lines),
+            "ai_powered": False,
+            "data": {"type": "variance", "items": _sanitize([{"field": c, "cv": round(v, 3)} for c, v, _ in items])},
+        }
+
+    # ── Fallback handler: trends ─────────────────────────────────
+
+    def _fb_trends(self, df: pd.DataFrame, numeric_cols: list) -> Dict:
+        lines = ["**Trend Analysis** (comparing first half vs second half of data):\n"]
+        trends = []
+        n = len(df)
+        if n < 6:
+            return {
+                "content": "Not enough records to compute trends (need at least 6).",
+                "ai_powered": False,
+                "data": {"type": "trends"},
+            }
+
+        half = n // 2
+        for col in numeric_cols:
+            first_mean = float(df[col].iloc[:half].mean())
+            second_mean = float(df[col].iloc[half:].mean())
+            if first_mean == 0:
+                continue
+            pct_change = (second_mean - first_mean) / abs(first_mean) * 100
+            if abs(pct_change) < 1:
+                direction = "stable"
+            elif pct_change > 0:
+                direction = "increasing"
+            else:
+                direction = "decreasing"
+            trends.append((col, pct_change, direction))
+
+        trends.sort(key=lambda x: abs(x[1]), reverse=True)
+        for col, pct, direction in trends[:12]:
+            arrow = "↗" if pct > 1 else "↘" if pct < -1 else "→"
+            marker = " ⚠" if abs(pct) > 20 else ""
+            lines.append(f"- {arrow} **{col}**: {direction} ({pct:+.1f}%){marker}")
+
+        if not trends:
+            lines.append("No numeric fields to analyze trends.")
+
+        return {
+            "content": "\n".join(lines),
+            "ai_powered": False,
+            "data": {"type": "trends", "trends": _sanitize([{"field": c, "change_pct": round(p, 2), "direction": d} for c, p, d in trends])},
+        }
+
+    # ── Fallback handler: distribution ───────────────────────────
+
+    def _fb_distribution(self, df: pd.DataFrame, numeric_cols: list, target_field: Optional[str]) -> Dict:
+        cols = [target_field] if target_field and target_field in numeric_cols else numeric_cols[:6]
+        lines = ["**Distribution Summary**:\n"]
+
+        for col in cols:
+            s = df[col].dropna()
+            if len(s) < 4:
+                continue
+            q25, q50, q75 = float(s.quantile(0.25)), float(s.quantile(0.5)), float(s.quantile(0.75))
+            iqr = q75 - q25
+            skew = float(s.skew()) if len(s) > 3 else 0
+            skew_desc = "symmetric" if abs(skew) < 0.5 else "right-skewed" if skew > 0 else "left-skewed"
+            lines.append(f"**{col}**:")
+            lines.append(f"  - Range: {float(s.min()):.4g} — {float(s.max()):.4g}")
+            lines.append(f"  - Quartiles: Q1={q25:.4g}, Median={q50:.4g}, Q3={q75:.4g}")
+            lines.append(f"  - IQR: {iqr:.4g}, Skewness: {skew:.2f} ({skew_desc})")
+            lines.append("")
+
+        return {
+            "content": "\n".join(lines),
+            "ai_powered": False,
+            "data": {"type": "distribution"},
+        }
+
+    # ── Fallback handler: single statistic ───────────────────────
+
+    def _fb_stat(self, df: pd.DataFrame, numeric_cols: list, stat: str, target_field: Optional[str]) -> Dict:
+        cols = [target_field] if target_field and target_field in numeric_cols else numeric_cols
+        label = {"mean": "average", "max": "maximum", "min": "minimum",
+                 "std": "standard deviation", "median": "median"}.get(stat, stat)
+
+        stats = {}
+        for col in cols:
+            s = df[col].dropna()
+            if len(s) == 0:
+                continue
+            if stat == "mean":
+                stats[col] = round(float(s.mean()), 4)
+            elif stat == "max":
+                stats[col] = round(float(s.max()), 4)
+            elif stat == "min":
+                stats[col] = round(float(s.min()), 4)
+            elif stat == "std":
+                stats[col] = round(float(s.std()), 4)
+            elif stat == "median":
+                stats[col] = round(float(s.median()), 4)
+
+        lines = [f"Here are the **{label} values** for {'**' + target_field + '**' if target_field else 'numeric fields'}:\n"]
+        for col, val in stats.items():
+            lines.append(f"- **{col}**: {val}")
+
+        return {
+            "content": "\n".join(lines),
+            "ai_powered": False,
+            "data": {"type": "statistics", "statistics": _sanitize(stats)},
+        }
+
+    # ── Fallback handler: specific field detail ──────────────────
+
+    def _fb_field_detail(self, df: pd.DataFrame, field: str, numeric_cols: list) -> Dict:
+        lines = [f"**Detailed analysis of `{field}`**:\n"]
+        s = df[field].dropna()
+        lines.append(f"- **Records**: {len(s):,} ({len(df) - len(s)} missing)")
+
+        if field in numeric_cols and len(s) > 0:
+            lines.append(f"- **Mean**: {float(s.mean()):.4g}")
+            lines.append(f"- **Std Dev**: {float(s.std()):.4g}")
+            lines.append(f"- **Min**: {float(s.min()):.4g}")
+            lines.append(f"- **Max**: {float(s.max()):.4g}")
+            lines.append(f"- **Median**: {float(s.median()):.4g}")
+            if len(s) > 3:
+                q25, q75 = float(s.quantile(0.25)), float(s.quantile(0.75))
+                lines.append(f"- **Q1 / Q3**: {q25:.4g} / {q75:.4g}")
+                skew = float(s.skew())
+                lines.append(f"- **Skewness**: {skew:.2f}")
+                z = ((s - s.mean()) / s.std()).abs()
+                outliers = int((z > 2.5).sum())
+                if outliers:
+                    lines.append(f"- **Outliers (|z|>2.5)**: {outliers}")
+        else:
+            nunique = int(df[field].nunique())
+            lines.append(f"- **Unique values**: {nunique}")
+            top = df[field].value_counts().head(5)
+            if len(top) > 0:
+                lines.append("- **Top values**:")
+                for val, count in top.items():
+                    lines.append(f"  - `{val}`: {count} records")
+
+        return {
+            "content": "\n".join(lines),
+            "ai_powered": False,
+            "data": {"type": "field_detail", "field": field},
+        }
+
+    # ── Fallback handler: data overview ──────────────────────────
+
+    def _fb_data_overview(self, df: pd.DataFrame, numeric_cols: list, system: Dict) -> Dict:
+        cat_cols = [c for c in df.columns if c not in numeric_cols]
+        lines = [
+            f"**System: {system.get('name', 'Unknown')}** | "
+            f"Health: **{system.get('health_score', 'N/A')}**\n",
+            f"**{len(df):,} records** across **{len(df.columns)} fields**:\n",
+        ]
+
+        if numeric_cols:
+            lines.append(f"**Numeric** ({len(numeric_cols)}): {', '.join(numeric_cols[:15])}")
+        if cat_cols:
+            lines.append(f"**Categorical** ({len(cat_cols)}): {', '.join(cat_cols[:10])}")
+
+        lines.append("\nYou can ask me:")
+        lines.append("- \"What anomalies do you see?\"")
+        lines.append("- \"Summarize the system health\"")
+        lines.append("- \"Show me correlations\"")
+        lines.append("- \"What are the trends?\"")
+        lines.append("- \"Analyze field <name>\"")
+        lines.append("- \"What recommendations do you have?\"")
+        lines.append("- \"Show distribution of <field>\"")
+        lines.append("- \"What's the average / max / min?\"")
+
+        return {
+            "content": "\n".join(lines),
+            "ai_powered": False,
+            "data": {
+                "type": "data_overview",
+                "record_count": len(df),
+                "fields": list(df.columns),
+            },
+        }
+
+    # ── Helper: detect field name in user query ──────────────────
+
+    def _detect_field_mention(self, query: str, columns: list) -> Optional[str]:
+        """Check if the user mentioned a specific field name."""
+        q = query.lower()
+        # Exact match first
+        for col in sorted(columns, key=len, reverse=True):
+            if col.lower() in q:
+                return col
+        # Underscore / space variants
+        for col in columns:
+            normalized = col.lower().replace("_", " ")
+            if normalized in q:
+                return col
+        return None
 
 
 chat_service = ChatService()

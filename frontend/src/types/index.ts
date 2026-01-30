@@ -89,6 +89,19 @@ export interface AnalysisResult {
   engineering_margins: EngineeringMargin[];
   blind_spots: BlindSpot[];
   insights_summary?: string;
+  insights?: Record<string, unknown>[];
+  ai_analysis?: {
+    ai_powered: boolean;
+    agents_used: string[];
+    agent_statuses: {
+      agent: string;
+      status: string;
+      findings?: number;
+      error?: string;
+    }[];
+    total_findings_raw: number;
+    total_anomalies_unified: number;
+  };
 }
 
 // Impact Radar Types

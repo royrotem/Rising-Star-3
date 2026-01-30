@@ -9,7 +9,9 @@ import {
   ChevronRight,
   Target,
   Loader2,
-  ArrowRight
+  ArrowRight,
+  Sparkles,
+  Shield,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { systemsApi } from '../services/api';
@@ -44,22 +46,28 @@ const mockImpactRadar = {
 
 function getSeverityColor(severity: string) {
   switch (severity) {
-    case 'critical': return 'text-red-500 bg-red-500/10';
-    case 'high': return 'text-orange-500 bg-orange-500/10';
-    case 'medium': return 'text-yellow-500 bg-yellow-500/10';
-    case 'low': return 'text-green-500 bg-green-500/10';
-    default: return 'text-slate-500 bg-slate-500/10';
+    case 'critical': return 'text-red-400 bg-red-500/10 border border-red-500/20';
+    case 'high': return 'text-orange-400 bg-orange-500/10 border border-orange-500/20';
+    case 'medium': return 'text-yellow-400 bg-yellow-500/10 border border-yellow-500/20';
+    case 'low': return 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20';
+    default: return 'text-slate-400 bg-slate-500/10 border border-slate-500/20';
   }
 }
 
 function getStatusColor(status: string) {
   switch (status) {
-    case 'active': return 'text-green-500';
-    case 'anomaly_detected': return 'text-orange-500';
-    case 'maintenance': return 'text-yellow-500';
-    case 'inactive': return 'text-slate-500';
-    default: return 'text-slate-500';
+    case 'active': return 'bg-emerald-400';
+    case 'anomaly_detected': return 'bg-orange-400';
+    case 'maintenance': return 'bg-yellow-400';
+    case 'inactive': return 'bg-slate-500';
+    default: return 'bg-slate-500';
   }
+}
+
+function getHealthColor(score: number) {
+  if (score >= 90) return 'text-emerald-400';
+  if (score >= 70) return 'text-yellow-400';
+  return 'text-red-400';
 }
 
 export default function Dashboard() {
@@ -77,7 +85,6 @@ export default function Dashboard() {
       setSystems(data);
     } catch (error) {
       console.error('Failed to load systems:', error);
-      // Use mock data if API fails
       setSystems([
         {
           id: '1',
@@ -116,82 +123,82 @@ export default function Dashboard() {
   const anomalyCount = systems.filter(s => s.status === 'anomaly_detected').length;
 
   return (
-    <div className="p-8">
+    <div className="p-8 page-enter">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-slate-400 mt-1">
+          <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
+          <p className="text-slate-400 mt-1 text-sm">
             Monitor your fleet and track critical issues
           </p>
         </div>
         <button
           onClick={() => navigate('/systems/new')}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-primary-500/20 hover:shadow-primary-500/30"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           Add System
         </button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-4 gap-6 mb-8">
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+      <div className="grid grid-cols-4 gap-5 mb-8">
+        <div className="stat-card" style={{ '--stat-accent': '#6366f1' } as React.CSSProperties}>
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-primary-500/10 rounded-lg">
-              <Server className="w-6 h-6 text-primary-500" />
+            <div className="p-2.5 bg-primary-500/10 rounded-xl">
+              <Server className="w-5 h-5 text-primary-400" />
             </div>
             <div>
               {loading ? (
-                <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
+                <Loader2 className="w-5 h-5 text-primary-400 animate-spin" />
               ) : (
                 <p className="text-2xl font-bold text-white">{systems.length}</p>
               )}
-              <p className="text-sm text-slate-400">Active Systems</p>
+              <p className="text-xs text-slate-500 font-medium">Active Systems</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <div className="stat-card" style={{ '--stat-accent': '#f97316' } as React.CSSProperties}>
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-orange-500/10 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-orange-500" />
+            <div className="p-2.5 bg-orange-500/10 rounded-xl">
+              <AlertTriangle className="w-5 h-5 text-orange-400" />
             </div>
             <div>
               {loading ? (
-                <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+                <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />
               ) : (
                 <p className="text-2xl font-bold text-white">{anomalyCount}</p>
               )}
-              <p className="text-sm text-slate-400">Active Anomalies</p>
+              <p className="text-xs text-slate-500 font-medium">Active Anomalies</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <div className="stat-card" style={{ '--stat-accent': '#10b981' } as React.CSSProperties}>
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-green-500/10 rounded-lg">
-              <Activity className="w-6 h-6 text-green-500" />
+            <div className="p-2.5 bg-emerald-500/10 rounded-xl">
+              <Activity className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
               {loading ? (
-                <Loader2 className="w-6 h-6 text-green-500 animate-spin" />
+                <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
               ) : (
                 <p className="text-2xl font-bold text-white">{avgHealthScore}%</p>
               )}
-              <p className="text-sm text-slate-400">Avg Health Score</p>
+              <p className="text-xs text-slate-500 font-medium">Avg Health Score</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <div className="stat-card" style={{ '--stat-accent': '#ef4444' } as React.CSSProperties}>
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-red-500/10 rounded-lg">
-              <TrendingDown className="w-6 h-6 text-red-500" />
+            <div className="p-2.5 bg-red-500/10 rounded-xl">
+              <TrendingDown className="w-5 h-5 text-red-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-white">2</p>
-              <p className="text-sm text-slate-400">Margins Degrading</p>
+              <p className="text-xs text-slate-500 font-medium">Margins Degrading</p>
             </div>
           </div>
         </div>
@@ -199,41 +206,42 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-3 gap-6">
         {/* 80/20 Impact Radar */}
-        <div className="col-span-2 bg-slate-800 rounded-xl border border-slate-700">
-          <div className="px-6 py-4 border-b border-slate-700">
+        <div className="col-span-2 glass-card overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-700/50">
             <div className="flex items-center gap-2">
-              <Target className="w-5 h-5 text-primary-500" />
-              <h2 className="text-lg font-semibold text-white">80/20 Impact Radar</h2>
+              <Target className="w-5 h-5 text-primary-400" />
+              <h2 className="text-base font-semibold text-white">80/20 Impact Radar</h2>
             </div>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Focus on the 20% of issues causing 80% of impact
             </p>
           </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {mockImpactRadar.prioritized_issues.map((issue) => (
+          <div className="p-5">
+            <div className="space-y-3">
+              {mockImpactRadar.prioritized_issues.map((issue, idx) => (
                 <Link
                   key={issue.rank}
                   to={`/systems/1`}
-                  className="flex items-center gap-4 p-4 bg-slate-900/50 rounded-lg border border-slate-700 hover:border-primary-500/50 transition-colors group"
+                  className="flex items-center gap-4 p-4 bg-slate-900/40 rounded-xl border border-slate-700/40 hover:border-primary-500/30 transition-all duration-200 group"
+                  style={{ animationDelay: `${idx * 100}ms` }}
                 >
-                  <div className="flex items-center justify-center w-10 h-10 bg-slate-700 rounded-full font-bold text-white group-hover:bg-primary-500/20 transition-colors">
-                    #{issue.rank}
+                  <div className="flex items-center justify-center w-9 h-9 bg-slate-800 rounded-lg text-sm font-bold text-slate-400 group-hover:bg-primary-500/10 group-hover:text-primary-400 transition-all duration-200">
+                    {issue.rank}
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-white group-hover:text-primary-400 transition-colors">{issue.title}</h3>
-                    <p className="text-sm text-slate-400">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-sm text-white group-hover:text-primary-300 transition-colors truncate">{issue.title}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
                       Affecting {issue.affected_percentage}% of fleet
                     </p>
                   </div>
-                  <div className="text-right flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-shrink-0">
                     <div className={clsx(
-                      'inline-flex px-3 py-1 rounded-full text-sm font-medium',
+                      'inline-flex px-2.5 py-1 rounded-lg text-xs font-medium',
                       getSeverityColor(issue.severity)
                     )}>
-                      Impact: {issue.impact_score}
+                      {issue.impact_score}
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-primary-400 transition-colors" />
+                    <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-primary-400 transition-colors" />
                   </div>
                 </Link>
               ))}
@@ -242,68 +250,86 @@ export default function Dashboard() {
         </div>
 
         {/* Systems List */}
-        <div className="bg-slate-800 rounded-xl border border-slate-700">
-          <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Systems</h2>
+        <div className="glass-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-700/50 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-white">Systems</h2>
             <Link
               to="/systems"
-              className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1"
+              className="text-xs text-primary-400 hover:text-primary-300 flex items-center gap-1 font-medium transition-colors"
             >
               View all
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-          <div className="p-4">
+          <div className="p-3">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
+                <Loader2 className="w-5 h-5 text-primary-400 animate-spin" />
               </div>
             ) : systems.length === 0 ? (
-              <div className="text-center py-8">
-                <Server className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-slate-400 text-sm">No systems yet</p>
+              <div className="text-center py-10">
+                <div className="p-3 bg-slate-800/50 rounded-xl inline-block mb-3">
+                  <Server className="w-7 h-7 text-slate-600" />
+                </div>
+                <p className="text-slate-400 text-sm font-medium">No systems yet</p>
                 <Link
                   to="/systems/new"
-                  className="text-primary-400 text-sm hover:text-primary-300"
+                  className="text-primary-400 text-xs hover:text-primary-300 mt-1 inline-block"
                 >
                   Add your first system
                 </Link>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-0.5">
                 {systems.slice(0, 5).map((system) => (
                   <Link
                     key={system.id}
                     to={`/systems/${system.id}`}
-                    className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-700/50 transition-colors group"
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-800/60 transition-all duration-200 group"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className={clsx(
-                        'w-2 h-2 rounded-full',
-                        getStatusColor(system.status).replace('text-', 'bg-')
+                        'w-2 h-2 rounded-full flex-shrink-0',
+                        getStatusColor(system.status)
                       )} />
-                      <div>
-                        <p className="font-medium text-white group-hover:text-primary-400 transition-colors">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm text-white group-hover:text-primary-300 transition-colors truncate">
                           {system.name}
                         </p>
-                        <p className="text-sm text-slate-400 capitalize">{system.system_type.replace('_', ' ')}</p>
+                        <p className="text-xs text-slate-500 capitalize">{system.system_type.replace('_', ' ')}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <span className={clsx(
-                        'text-sm font-medium',
-                        system.health_score >= 90 ? 'text-green-500' :
-                        system.health_score >= 70 ? 'text-yellow-500' : 'text-red-500'
+                        'text-sm font-semibold tabular-nums',
+                        getHealthColor(system.health_score)
                       )}>
                         {system.health_score}%
                       </span>
-                      <ChevronRight className="w-4 h-4 text-slate-500" />
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-400" />
                     </div>
                   </Link>
                 ))}
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Quick Info Banner */}
+      <div className="mt-6 glass-card p-5 flex items-center gap-4">
+        <div className="p-2.5 bg-primary-500/10 rounded-xl flex-shrink-0">
+          <Sparkles className="w-5 h-5 text-primary-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-medium text-white">AI-Powered Analysis</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            5 specialized agents analyze your data across statistical, domain, pattern, root-cause, and safety dimensions
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Shield className="w-4 h-4 text-accent-400" />
+          <span className="text-xs text-accent-400 font-medium">Active</span>
         </div>
       </div>
     </div>

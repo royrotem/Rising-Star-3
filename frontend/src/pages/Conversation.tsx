@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { 
+import {
   ArrowLeft,
   Send,
   Bot,
@@ -8,15 +8,19 @@ import {
   Loader2,
   Lightbulb,
   AlertTriangle,
-  BarChart3
+  Trash2,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { chatApi, ChatMessageResponse } from '../services/chatApi';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  aiPowered?: boolean;
   data?: {
     type?: string;
     evidence?: string[];
@@ -25,25 +29,28 @@ interface Message {
 }
 
 const suggestedQueries = [
-  "Why is motor A drawing more current?",
-  "Show me all events where battery temp exceeded 40C",
-  "What changed in the last 7 days?",
-  "Compare current performance to baseline",
-  "What sensors should we add for the next version?",
+  "What anomalies have been detected recently?",
+  "Summarize the overall system health",
+  "Which fields show the most variance?",
+  "Are there any correlations between anomalies?",
+  "What recommendations do you have for this system?",
 ];
+
+const WELCOME_MESSAGE: Message = {
+  id: 'welcome',
+  role: 'assistant',
+  content: "Hello! I'm your AI engineering assistant. I can help you understand your system's behavior, investigate anomalies, and answer questions about your data. What would you like to know?",
+  timestamp: new Date(),
+  aiPowered: true,
+};
 
 export default function Conversation() {
   const { systemId } = useParams();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: "Hello! I'm your AI engineering assistant. I can help you understand your system's behavior, investigate anomalies, and answer questions about your data. What would you like to know?",
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -54,13 +61,40 @@ export default function Conversation() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  // Load conversation history on mount
+  useEffect(() => {
+    if (!systemId || historyLoaded) return;
 
+    const loadHistory = async () => {
+      try {
+        const history = await chatApi.history(systemId);
+        if (history.messages && history.messages.length > 0) {
+          const restored: Message[] = history.messages.map((m) => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            timestamp: new Date(m.timestamp),
+            data: m.data as Message['data'],
+          }));
+          setMessages(restored);
+        }
+      } catch {
+        // History not available — keep welcome message
+      } finally {
+        setHistoryLoaded(true);
+      }
+    };
+    loadHistory();
+  }, [systemId, historyLoaded]);
+
+  const handleSend = useCallback(async () => {
+    if (!input.trim() || isLoading || !systemId) return;
+
+    const userText = input.trim();
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `user-${Date.now()}`,
       role: 'user',
-      content: input.trim(),
+      content: userText,
       timestamp: new Date(),
     };
 
@@ -68,102 +102,32 @@ export default function Conversation() {
     setInput('');
     setIsLoading(true);
 
-    // Simulate AI response
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const response: ChatMessageResponse = await chatApi.send(systemId, userText);
 
-    const queryLower = input.toLowerCase();
-    let response: Message;
-
-    if (queryLower.includes('why') && queryLower.includes('current')) {
-      response = {
-        id: (Date.now() + 1).toString(),
+      const assistantMessage: Message = {
+        id: response.id,
         role: 'assistant',
-        content: `Based on my analysis, the increased motor current draw is most likely caused by **firmware update v2.3.1**, which was deployed 3 days ago.
-
-The update modified the motor control PID parameters, resulting in a more aggressive response curve. This increases power consumption by approximately **12%** but may improve response time.
-
-**Key Evidence:**
-- Current increase started exactly when firmware was deployed
-- Pattern is consistent across all operating conditions  
-- No mechanical indicators of degradation
-
-**Recommendation:** Consider rolling back to v2.3.0 if the increased power consumption is unacceptable, or consult with the firmware team about the PID tuning changes.`,
-        timestamp: new Date(),
-        data: {
-          type: 'explanation',
-          evidence: [
-            'Firmware v2.3.1 deployed on 2024-01-10',
-            'Current increase: 12% above baseline',
-            'No correlation with mechanical wear indicators',
-          ],
-        },
+        content: response.content,
+        timestamp: new Date(response.timestamp),
+        aiPowered: response.ai_powered,
+        data: response.data as Message['data'],
       };
-    } else if (queryLower.includes('show') || queryLower.includes('find')) {
-      response = {
-        id: (Date.now() + 1).toString(),
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
         role: 'assistant',
-        content: `I found **23 events** matching your criteria in the last 7 days.
-
-**Summary:**
-- Peak temperature: 42.3°C (Jan 12, 14:30)
-- Average when above threshold: 41.2°C
-- Most common time: 14:00-16:00 (high ambient temp)
-
-The pattern suggests thermal issues during afternoon operations. Would you like me to correlate this with motor load data?`,
-        timestamp: new Date(),
-        data: {
-          type: 'data_query',
-          relatedData: {
-            total_matches: 23,
-            peak_value: 42.3,
-            peak_time: '2024-01-12T14:30:00Z',
-          },
-        },
-      };
-    } else if (queryLower.includes('sensor') || queryLower.includes('next version')) {
-      response = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `Based on the blind spots I've identified, here are my recommendations for the next hardware revision:
-
-**Priority 1: 3-axis Accelerometer**
-- Location: Motor mount
-- Sampling: 1kHz
-- Rationale: Enable vibration analysis for early bearing wear detection
-- Estimated diagnostic coverage improvement: +25%
-- Cost: ~$150
-
-**Priority 2: Humidity Sensor**  
-- Location: Electronics bay
-- Rationale: Correlate environmental conditions with electrical anomalies
-- Cost: ~$25
-
-These additions would significantly improve our ability to diagnose the recurring motor anomalies that we currently cannot fully explain.`,
-        timestamp: new Date(),
-        data: {
-          type: 'recommendation',
-        },
-      };
-    } else {
-      response = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `I can help you investigate that. Currently, the system is operating at **87.5% health** with one active anomaly (motor current deviation).
-
-Try asking me specific questions like:
-- "Why is [parameter] behaving this way?"
-- "Show me all events where [condition]"
-- "Compare [metric] over the last [period]"
-- "What are the engineering margins for [component]?"
-
-What would you like to explore?`,
+        content: `Sorry, I encountered an error processing your request. Please try again.\n\n_Error: ${errorMsg}_`,
         timestamp: new Date(),
       };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
-
-    setMessages(prev => [...prev, response]);
-    setIsLoading(false);
-  };
+  }, [input, isLoading, systemId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -176,25 +140,60 @@ What would you like to explore?`,
     setInput(query);
   };
 
+  const handleClearHistory = async () => {
+    if (!systemId || clearing) return;
+    setClearing(true);
+    try {
+      await chatApi.clear(systemId);
+      setMessages([WELCOME_MESSAGE]);
+    } catch {
+      // Ignore clear errors
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const hasConversation = messages.length > 1 || (messages.length === 1 && messages[0].id !== 'welcome');
+
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <div className="flex items-center gap-4 p-4 border-b border-slate-700 bg-slate-800">
+      <div className="flex items-center gap-4 p-4 border-b border-slate-700 bg-slate-800/80 backdrop-blur-sm">
         <Link
           to={'/systems/' + systemId}
           className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-slate-400" />
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1">
           <div className="p-2 bg-primary-500/10 rounded-lg">
             <Bot className="w-6 h-6 text-primary-500" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-white">Conversational Chief Engineer</h1>
-            <p className="text-sm text-slate-400">Ask questions about your system in natural language</p>
+            <h1 className="text-lg font-semibold text-white flex items-center gap-2">
+              Conversational Chief Engineer
+              <Sparkles className="w-4 h-4 text-amber-400" />
+            </h1>
+            <p className="text-sm text-slate-400 flex items-center gap-1.5">
+              <Zap className="w-3 h-3 text-emerald-400" />
+              AI-powered — ask questions about your system in natural language
+            </p>
           </div>
         </div>
+        {hasConversation && (
+          <button
+            onClick={handleClearHistory}
+            disabled={clearing}
+            className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-red-400"
+            title="Clear conversation"
+          >
+            {clearing ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Trash2 className="w-5 h-5" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -203,7 +202,7 @@ What would you like to explore?`,
           <div
             key={message.id}
             className={clsx(
-              'flex gap-3 max-w-4xl',
+              'flex gap-3 max-w-4xl animate-fadeIn',
               message.role === 'user' ? 'ml-auto flex-row-reverse' : ''
             )}
           >
@@ -219,8 +218,8 @@ What would you like to explore?`,
             </div>
             <div className={clsx(
               'rounded-xl p-4 max-w-2xl',
-              message.role === 'user' 
-                ? 'bg-primary-500 text-white' 
+              message.role === 'user'
+                ? 'bg-primary-500 text-white'
                 : 'bg-slate-800 border border-slate-700'
             )}>
               <div className={clsx(
@@ -232,13 +231,13 @@ What would you like to explore?`,
                     'mb-2 last:mb-0',
                     message.role === 'assistant' && 'text-slate-200'
                   )}>
-                    {line.split('**').map((part, j) => 
+                    {line.split('**').map((part, j) =>
                       j % 2 === 1 ? <strong key={j}>{part}</strong> : part
                     )}
                   </p>
                 ))}
               </div>
-              
+
               {message.data?.evidence && (
                 <div className="mt-3 pt-3 border-t border-slate-600">
                   <div className="flex items-center gap-2 text-sm text-slate-400 mb-2">
@@ -255,21 +254,34 @@ What would you like to explore?`,
                   </ul>
                 </div>
               )}
+
+              {/* AI-powered badge for assistant messages */}
+              {message.role === 'assistant' && message.aiPowered && message.id !== 'welcome' && (
+                <div className="mt-2 pt-2 border-t border-slate-700/50">
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-400/70">
+                    <Sparkles className="w-3 h-3" />
+                    AI-powered response
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         ))}
-        
+
         {isLoading && (
-          <div className="flex gap-3 max-w-4xl">
+          <div className="flex gap-3 max-w-4xl animate-fadeIn">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700">
               <Bot className="w-5 h-5 text-primary-400" />
             </div>
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-              <Loader2 className="w-5 h-5 text-primary-400 animate-spin" />
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-5 h-5 text-primary-400 animate-spin" />
+                <span className="text-sm text-slate-400">Analyzing your data...</span>
+              </div>
             </div>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -295,7 +307,7 @@ What would you like to explore?`,
       )}
 
       {/* Input */}
-      <div className="p-4 border-t border-slate-700 bg-slate-800">
+      <div className="p-4 border-t border-slate-700 bg-slate-800/80 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto flex gap-3">
           <input
             type="text"

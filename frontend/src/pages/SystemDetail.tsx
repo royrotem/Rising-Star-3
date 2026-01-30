@@ -259,6 +259,13 @@ export default function SystemDetail() {
           <p className="text-slate-400 capitalize">{system.system_type.replace('_', ' ')} | ID: {systemId}</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            to={`/systems/${systemId}/chat`}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Ask AI
+          </Link>
           <button
             onClick={() => navigate('/systems/new')}
             className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
@@ -361,6 +368,28 @@ export default function SystemDetail() {
           </div>
         </div>
       )}
+
+      {/* AI Chat CTA */}
+      <Link
+        to={`/systems/${systemId}/chat`}
+        className="block mb-6 bg-gradient-to-r from-primary-500/10 to-accent-500/10 border border-primary-500/20 rounded-xl p-5 hover:border-primary-500/40 transition-all group"
+      >
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-primary-500/10 rounded-xl group-hover:bg-primary-500/20 transition-colors">
+            <MessageSquare className="w-6 h-6 text-primary-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-white font-semibold flex items-center gap-2">
+              Ask AI About This System
+              <span className="px-2 py-0.5 bg-primary-500/20 text-primary-400 text-xs rounded-full font-medium">AI Chat</span>
+            </h3>
+            <p className="text-sm text-slate-400 mt-0.5">
+              Ask questions in natural language — get insights about anomalies, data patterns, and recommendations
+            </p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-primary-400 transition-colors" />
+        </div>
+      </Link>
 
       {/* Live Analysis Progress (SSE Streaming) */}
       {analyzing && <AnalysisStreamPanel stream={stream} />}

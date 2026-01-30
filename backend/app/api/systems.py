@@ -4,11 +4,13 @@ Systems API Endpoints
 Handles system management, data ingestion, and analysis.
 """
 
+import math
 import os
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
@@ -32,6 +34,31 @@ from .schemas import (
 )
 
 router = APIRouter(prefix="/systems", tags=["Systems"])
+
+
+# ─── JSON serialization helpers ───────────────────────────────────────
+
+def _sanitize_for_json(obj: Any) -> Any:
+    """Recursively convert numpy/pandas types to native Python types for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(item) for item in obj]
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        val = float(obj)
+        if math.isnan(val) or math.isinf(val):
+            return None
+        return val
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    if isinstance(obj, np.ndarray):
+        return _sanitize_for_json(obj.tolist())
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    return obj
+
 
 # ─── Service instances ────────────────────────────────────────────────
 
@@ -510,7 +537,7 @@ async def analyze_system(system_id: str, request: AnalysisRequest):
     if result.health_score:
         data_store.update_system(system_id, {"health_score": result.health_score})
 
-    return analysis_result
+    return _sanitize_for_json(analysis_result)
 
 
 def _anomaly_to_dict(a) -> Dict[str, Any]:

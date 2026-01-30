@@ -9,6 +9,7 @@ registration in main.py cleanly disables the feature.
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
+from ..services.data_store import data_store
 from ..services.report_generator import generate_report
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -17,16 +18,11 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 @router.get("/systems/{system_id}/pdf")
 async def download_report(system_id: str):
     """Generate and download a PDF report for a system."""
-    # Load system
-    from ..api.systems import _load_systems, _load_records
-
-    systems = _load_systems()
-    system = next((s for s in systems if s.get("id") == system_id), None)
+    system = data_store.get_system(system_id)
     if not system:
         raise HTTPException(status_code=404, detail="System not found")
 
-    # Load records
-    records = _load_records(system_id)
+    records = data_store.get_ingested_records(system_id)
 
     # Load statistics
     statistics = None
@@ -93,14 +89,11 @@ async def download_report(system_id: str):
 @router.post("/systems/{system_id}/analyze-and-report")
 async def analyze_and_report(system_id: str):
     """Run a fresh analysis and immediately generate a PDF report."""
-    from ..api.systems import _load_systems, _load_records, _load_schema
-
-    systems = _load_systems()
-    system = next((s for s in systems if s.get("id") == system_id), None)
+    system = data_store.get_system(system_id)
     if not system:
         raise HTTPException(status_code=404, detail="System not found")
 
-    records = _load_records(system_id)
+    records = data_store.get_ingested_records(system_id)
     if not records:
         raise HTTPException(status_code=400, detail="No data available for analysis")
 
@@ -110,7 +103,8 @@ async def analyze_and_report(system_id: str):
 
     engine = AnalysisEngine()
     df = pd.DataFrame(records)
-    schema_fields = _load_schema(system_id)
+    schema = data_store.get_schema(system_id)
+    schema_fields = list(schema.values()) if isinstance(schema, dict) else (schema or [])
     analysis_result = engine.analyze(
         system_id=system_id,
         system_type=system.get("system_type", "generic"),

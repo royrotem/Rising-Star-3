@@ -9,6 +9,7 @@ Additive feature — removing this file + router registration disables it.
 from fastapi import APIRouter, HTTPException
 
 from ..services.baseline_store import baseline_store
+from ..services.data_store import data_store
 
 router = APIRouter(prefix="/baselines", tags=["baselines"])
 
@@ -16,14 +17,11 @@ router = APIRouter(prefix="/baselines", tags=["baselines"])
 @router.post("/systems/{system_id}/snapshot")
 async def capture_snapshot(system_id: str):
     """Capture a snapshot of the current system data statistics."""
-    from ..api.systems import _load_systems, _load_records
-
-    systems = _load_systems()
-    system = next((s for s in systems if s.get("id") == system_id), None)
+    system = data_store.get_system(system_id)
     if not system:
         raise HTTPException(status_code=404, detail="System not found")
 
-    records = _load_records(system_id)
+    records = data_store.get_ingested_records(system_id)
 
     # Try to load latest analysis
     analysis = None
@@ -66,14 +64,11 @@ async def get_baseline(system_id: str):
 @router.get("/systems/{system_id}/compare")
 async def compare_to_baseline(system_id: str):
     """Compare current data against the historical baseline."""
-    from ..api.systems import _load_systems, _load_records
-
-    systems = _load_systems()
-    system = next((s for s in systems if s.get("id") == system_id), None)
+    system = data_store.get_system(system_id)
     if not system:
         raise HTTPException(status_code=404, detail="System not found")
 
-    records = _load_records(system_id)
+    records = data_store.get_ingested_records(system_id)
     result = baseline_store.compare_to_baseline(system_id, records)
     return result
 

@@ -126,10 +126,50 @@ class IngestionService:
         }
 
     async def _parse_csv(self, file_content: BinaryIO) -> tuple[List[Dict], Dict]:
-        """Parse CSV file and extract records."""
-        content = file_content.read().decode('utf-8')
-        df = pd.read_csv(pd.io.common.StringIO(content))
-        records = df.to_dict('records')
+        """Parse CSV file and extract records.
+
+        Handles encoding detection (UTF-8/BOM/latin-1), delimiter sniffing
+        (comma/semicolon/tab/pipe), and empty-row cleanup.
+        """
+        import csv as _csv
+        import io as _io
+
+        raw = file_content.read()
+
+        # ── Detect encoding ──────────────────────────────────────
+        for encoding in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+            try:
+                content = raw.decode(encoding)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+        else:
+            content = raw.decode("utf-8", errors="replace")
+
+        # ── Detect delimiter ─────────────────────────────────────
+        sample = content[:8192]
+        try:
+            dialect = _csv.Sniffer().sniff(sample, delimiters=",;\t|")
+            sep = dialect.delimiter
+        except _csv.Error:
+            sep = ","
+
+        df = pd.read_csv(_io.StringIO(content), sep=sep)
+
+        # Drop fully empty rows / columns
+        df.dropna(how="all", inplace=True)
+        df.dropna(axis=1, how="all", inplace=True)
+
+        # Strip whitespace from column names
+        df.columns = [str(c).strip() for c in df.columns]
+
+        # Drop unnamed columns
+        df = df.loc[:, ~df.columns.str.startswith("Unnamed:")]
+
+        if df.empty:
+            return [], {}
+
+        records = df.to_dict("records")
         schema = {col: str(df[col].dtype) for col in df.columns}
         return records, schema
 

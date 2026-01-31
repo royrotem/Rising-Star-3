@@ -173,7 +173,17 @@ async def analyze_files(files: List[UploadFile] = File(...)):
             file.file.seek(0)
 
         except Exception as e:
+            import traceback
             print(f"Error processing file {file.filename}: {e}")
+            traceback.print_exc()
+            file_summaries.append({
+                "filename": file.filename,
+                "status": "error",
+                "error": str(e),
+                "record_count": 0,
+                "fields": [],
+                "field_types": {},
+            })
             continue
 
     data_store.store_temp_analysis(
@@ -206,6 +216,8 @@ async def analyze_files(files: List[UploadFile] = File(...)):
         file_summaries, all_discovered_fields, all_metadata,
     )
 
+    file_errors = [s for s in file_summaries if s.get("status") == "error"]
+
     return {
         "status": "success",
         "analysis_id": analysis_id,
@@ -216,6 +228,7 @@ async def analyze_files(files: List[UploadFile] = File(...)):
         "recommendation": recommendation,
         "context_extracted": len(combined_context_texts) > 0,
         "fields_enriched": len(combined_field_descriptions),
+        "file_errors": file_errors,
     }
 
 

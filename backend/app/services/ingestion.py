@@ -55,6 +55,8 @@ class IngestionService:
             'json': self._parse_json,
             'jsonl': self._parse_jsonl,
             'parquet': self._parse_parquet,
+            'xlsx': self._parse_excel,
+            'xls': self._parse_excel,
             'can': self._parse_can_bus,
             'bin': self._parse_binary,
         }
@@ -128,6 +130,58 @@ class IngestionService:
         content = file_content.read().decode('utf-8')
         df = pd.read_csv(pd.io.common.StringIO(content))
         records = df.to_dict('records')
+        schema = {col: str(df[col].dtype) for col in df.columns}
+        return records, schema
+
+    async def _parse_excel(self, file_content: BinaryIO) -> tuple[List[Dict], Dict]:
+        """Parse Excel (.xlsx / .xls) file and extract records.
+
+        Handles common edge cases:
+        - Multi-sheet workbooks: reads the first sheet by default, then
+          appends rows from additional sheets that share the same columns.
+        - Empty leading rows: pandas skiprows is left at default (None) so
+          that read_excel auto-detects the header row.
+        - Merged cells: openpyxl forward-fills merged regions automatically.
+        """
+        import io as _io
+
+        raw = file_content.read()
+        buf = _io.BytesIO(raw)
+
+        # Discover sheet names
+        xl = pd.ExcelFile(buf, engine="openpyxl")
+        sheet_names = xl.sheet_names
+
+        # Read the first sheet
+        df = xl.parse(sheet_names[0])
+
+        # Drop fully empty rows / columns
+        df.dropna(how="all", inplace=True)
+        df.dropna(axis=1, how="all", inplace=True)
+
+        # If multiple sheets share the same column set, concatenate them
+        if len(sheet_names) > 1:
+            base_cols = set(df.columns)
+            for sheet in sheet_names[1:]:
+                try:
+                    extra = xl.parse(sheet)
+                    extra.dropna(how="all", inplace=True)
+                    extra.dropna(axis=1, how="all", inplace=True)
+                    if set(extra.columns) == base_cols:
+                        df = pd.concat([df, extra], ignore_index=True)
+                except Exception:
+                    continue
+
+        # Normalize column names: strip whitespace
+        df.columns = [str(c).strip() for c in df.columns]
+
+        # Drop unnamed columns that pandas generates for blank Excel columns
+        df = df.loc[:, ~df.columns.str.startswith("Unnamed:")]
+
+        if df.empty:
+            return [], {}
+
+        records = df.to_dict("records")
         schema = {col: str(df[col].dtype) for col in df.columns}
         return records, schema
 

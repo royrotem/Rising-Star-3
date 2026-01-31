@@ -8,7 +8,6 @@ remove.
 """
 
 import json
-import math
 import os
 import threading
 from datetime import datetime
@@ -18,25 +17,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-
-def _sanitize(obj: Any) -> Any:
-    """Recursively convert numpy/pandas types for JSON."""
-    if isinstance(obj, dict):
-        return {k: _sanitize(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_sanitize(i) for i in obj]
-    if isinstance(obj, (np.integer,)):
-        return int(obj)
-    if isinstance(obj, (np.floating,)):
-        v = float(obj)
-        return None if (math.isnan(v) or math.isinf(v)) else v
-    if isinstance(obj, np.bool_):
-        return bool(obj)
-    if isinstance(obj, np.ndarray):
-        return _sanitize(obj.tolist())
-    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
-        return None
-    return obj
+from ..utils import sanitize_for_json
 
 
 class BaselineStore:
@@ -127,7 +108,7 @@ class BaselineStore:
                 s = df[col].dropna()
                 if len(s) == 0:
                     continue
-                field_stats[col] = _sanitize({
+                field_stats[col] = sanitize_for_json({
                     "mean": float(s.mean()),
                     "std": float(s.std()),
                     "min": float(s.min()),
@@ -213,7 +194,7 @@ class BaselineStore:
             stds = [h["std"] for h in history if h.get("std") is not None]
             if not means:
                 continue
-            baseline["field_baselines"][field] = _sanitize({
+            baseline["field_baselines"][field] = sanitize_for_json({
                 "mean_of_means": round(float(np.mean(means)), 4),
                 "std_of_means": round(float(np.std(means)), 4) if len(means) > 1 else 0,
                 "avg_std": round(float(np.mean(stds)), 4) if stds else 0,
@@ -275,7 +256,7 @@ class BaselineStore:
             elif z_deviation > 1:
                 status = "minor_deviation"
 
-            deviations.append(_sanitize({
+            deviations.append(sanitize_for_json({
                 "field": col,
                 "current_mean": round(current_mean, 4),
                 "baseline_mean": round(baseline_mean, 4),

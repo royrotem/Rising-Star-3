@@ -5,13 +5,11 @@ Handles system management, data ingestion, and analysis.
 """
 
 import json
-import math
 import os
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
@@ -23,7 +21,14 @@ from ..services.recommendation import (
     build_data_profile,
     enrich_fields_with_context,
     generate_system_recommendation,
-    titles_overlap,
+)
+from ..utils import (
+    sanitize_for_json,
+    anomaly_to_dict,
+    merge_ai_anomalies,
+    load_saved_analysis,
+    save_analysis,
+    get_data_dir,
 )
 from .app_settings import get_ai_settings
 from .schemas import (
@@ -35,30 +40,6 @@ from .schemas import (
 )
 
 router = APIRouter(prefix="/systems", tags=["Systems"])
-
-
-# ─── JSON serialization helpers ───────────────────────────────────────
-
-def _sanitize_for_json(obj: Any) -> Any:
-    """Recursively convert numpy/pandas types to native Python types for JSON serialization."""
-    if isinstance(obj, dict):
-        return {k: _sanitize_for_json(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_sanitize_for_json(item) for item in obj]
-    if isinstance(obj, (np.integer,)):
-        return int(obj)
-    if isinstance(obj, (np.floating,)):
-        val = float(obj)
-        if math.isnan(val) or math.isinf(val):
-            return None
-        return val
-    if isinstance(obj, np.bool_):
-        return bool(obj)
-    if isinstance(obj, np.ndarray):
-        return _sanitize_for_json(obj.tolist())
-    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
-        return None
-    return obj
 
 
 # ─── Service instances ────────────────────────────────────────────────
@@ -476,19 +457,10 @@ async def get_saved_analysis(system_id: str):
     if not system:
         raise HTTPException(status_code=404, detail="System not found")
 
-    from pathlib import Path
-    data_dir = os.environ.get("DATA_DIR", "/app/data")
-    if not os.path.exists("/app") and os.path.exists(os.path.dirname(__file__)):
-        data_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data")
-    analysis_path = Path(data_dir) / "analyses" / f"{system_id}.json"
-
-    if not analysis_path.exists():
+    result = load_saved_analysis(system_id)
+    if result is None:
         raise HTTPException(status_code=404, detail="No analysis found. Run analysis first.")
-
-    try:
-        return json.loads(analysis_path.read_text())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to load analysis: {e}")
+    return result
 
 
 @router.post("/{system_id}/analyze")
@@ -519,7 +491,7 @@ async def analyze_system(system_id: str, request: AnalysisRequest):
         metadata=system.get("metadata", {}),
     )
 
-    anomalies = [_anomaly_to_dict(a) for a in result.anomalies]
+    anomalies = [anomaly_to_dict(a) for a in result.anomalies]
 
     # ── AI multi-agent analysis ──
     ai_result, agent_statuses = await _run_ai_analysis(
@@ -571,44 +543,9 @@ async def analyze_system(system_id: str, request: AnalysisRequest):
     if updates:
         data_store.update_system(system_id, updates)
 
-    # Persist analysis result so the PDF report endpoint can find it
-    try:
-        from pathlib import Path
-        data_dir = os.environ.get("DATA_DIR", "/app/data")
-        if not os.path.exists("/app") and os.path.exists(os.path.dirname(__file__)):
-            data_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data")
-        analyses_dir = Path(data_dir) / "analyses"
-        analyses_dir.mkdir(parents=True, exist_ok=True)
-        analysis_path = analyses_dir / f"{system_id}.json"
-        analysis_path.write_text(json.dumps(
-            _sanitize_for_json(analysis_result), indent=2, default=str
-        ))
-    except Exception:
-        pass
+    save_analysis(system_id, analysis_result)
 
-    return _sanitize_for_json(analysis_result)
-
-
-def _anomaly_to_dict(a) -> Dict[str, Any]:
-    """Convert a rule-based Anomaly dataclass to API dict format."""
-    return {
-        "id": a.id,
-        "type": a.anomaly_type.value,
-        "severity": a.severity.value,
-        "title": a.title,
-        "description": a.description,
-        "affected_fields": [a.field_name] + a.related_fields,
-        "natural_language_explanation": a.natural_language_explanation,
-        "possible_causes": a.possible_causes,
-        "recommendations": a.recommendations,
-        "impact_score": a.impact_score,
-        "confidence": a.confidence,
-        "value": a.value,
-        "expected_range": a.expected_range,
-        "contributing_agents": ["Rule Engine"],
-        "web_references": [],
-        "agent_perspectives": [],
-    }
+    return sanitize_for_json(analysis_result)
 
 
 async def _run_ai_analysis(
@@ -645,7 +582,7 @@ async def _run_ai_analysis(
             enable_web_grounding=ai_cfg.get("enable_web_grounding", True),
         )
 
-        _merge_ai_anomalies(anomalies, ai_result)
+        merge_ai_anomalies(anomalies, ai_result)
 
         agent_statuses = ai_result.get("agent_statuses", []) if ai_result else []
         return ai_result, agent_statuses
@@ -653,33 +590,6 @@ async def _run_ai_analysis(
     except Exception as e:
         print(f"[Analysis] AI agent analysis failed (using rule-based only): {e}")
         return None, [{"agent": "AI Orchestrator", "status": "error", "error": str(e)}]
-
-
-def _merge_ai_anomalies(anomalies: List[Dict], ai_result: Optional[Dict]) -> None:
-    """Merge AI-found anomalies into the existing list, deduplicating by title overlap."""
-    if not ai_result or not ai_result.get("anomalies"):
-        return
-
-    for ai_anomaly in ai_result["anomalies"]:
-        is_duplicate = False
-        for existing in anomalies:
-            if titles_overlap(existing.get("title", ""), ai_anomaly.get("title", "")):
-                existing.setdefault("contributing_agents", []).extend(
-                    ai_anomaly.get("contributing_agents", [])
-                )
-                existing.setdefault("agent_perspectives", []).extend(
-                    ai_anomaly.get("agent_perspectives", [])
-                )
-                existing.setdefault("web_references", []).extend(
-                    ai_anomaly.get("web_references", [])
-                )
-                if ai_anomaly.get("confidence", 0) > existing.get("confidence", 0):
-                    existing["confidence"] = ai_anomaly["confidence"]
-                is_duplicate = True
-                break
-
-        if not is_duplicate:
-            anomalies.append(ai_anomaly)
 
 
 # ═══════════════════════════════════════════════════════════════════════

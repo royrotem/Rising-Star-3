@@ -31,6 +31,7 @@ import clsx from 'clsx';
 import { systemsApi } from '../services/api';
 import type { System } from '../types';
 import { FeedbackButtons } from '../components/AnomalyFeedback';
+import { getSeverityCardColor, getSeverityDotColor, getSeveritySmallBadge } from '../utils/colors';
 
 // Reuse the AnalysisData shape from SystemDetail
 interface AnomalyItem {
@@ -62,36 +63,6 @@ const SEVERITY_ORDER: Record<string, number> = {
   low: 1,
   info: 0,
 };
-
-function getSeverityColor(severity: string) {
-  switch (severity) {
-    case 'critical': return 'border-red-500 bg-red-500/10';
-    case 'high': return 'border-orange-500 bg-orange-500/10';
-    case 'medium': return 'border-yellow-500 bg-yellow-500/10';
-    case 'low': return 'border-emerald-500 bg-emerald-500/10';
-    default: return 'border-slate-500 bg-slate-500/10';
-  }
-}
-
-function getSeverityDotColor(severity: string) {
-  switch (severity) {
-    case 'critical': return 'bg-red-500';
-    case 'high': return 'bg-orange-500';
-    case 'medium': return 'bg-yellow-500';
-    case 'low': return 'bg-emerald-500';
-    default: return 'bg-slate-500';
-  }
-}
-
-function getSeverityBadge(severity: string) {
-  switch (severity) {
-    case 'critical': return 'bg-red-500/15 text-red-400 border-red-500/30';
-    case 'high': return 'bg-orange-500/15 text-orange-400 border-orange-500/30';
-    case 'medium': return 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30';
-    case 'low': return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
-    default: return 'bg-slate-500/15 text-slate-400 border-slate-500/30';
-  }
-}
 
 export default function AnomalyExplorer() {
   const { systemId } = useParams();
@@ -464,7 +435,7 @@ export default function AnomalyExplorer() {
                 key={anomaly.id}
                 className={clsx(
                   'glass-card-hover p-4 border-l-4 cursor-pointer',
-                  getSeverityColor(anomaly.severity),
+                  getSeverityCardColor(anomaly.severity),
                   isExpanded && 'ring-1 ring-primary-500/30'
                 )}
                 onClick={() => setExpandedId(isExpanded ? null : anomaly.id)}
@@ -475,7 +446,7 @@ export default function AnomalyExplorer() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className={clsx(
                         'px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide border',
-                        getSeverityBadge(anomaly.severity)
+                        getSeveritySmallBadge(anomaly.severity)
                       )}>
                         {anomaly.severity}
                       </span>

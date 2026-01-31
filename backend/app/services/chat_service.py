@@ -8,15 +8,15 @@ analysis or query endpoints.
 """
 
 import json
-import math
 import os
 import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 import pandas as pd
+
+from ..utils import sanitize_for_json
 
 try:
     import anthropic
@@ -31,26 +31,6 @@ def _get_api_key() -> str:
         return get_anthropic_api_key()
     except Exception:
         return os.environ.get("ANTHROPIC_API_KEY", "")
-
-
-def _sanitize(obj: Any) -> Any:
-    """Recursively convert numpy/pandas types for JSON."""
-    if isinstance(obj, dict):
-        return {k: _sanitize(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_sanitize(i) for i in obj]
-    if isinstance(obj, (np.integer,)):
-        return int(obj)
-    if isinstance(obj, (np.floating,)):
-        v = float(obj)
-        return None if (math.isnan(v) or math.isinf(v)) else v
-    if isinstance(obj, np.bool_):
-        return bool(obj)
-    if isinstance(obj, np.ndarray):
-        return _sanitize(obj.tolist())
-    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
-        return None
-    return obj
 
 
 # ── Conversation persistence ────────────────────────────────────────
@@ -176,7 +156,7 @@ class ChatService:
         # Sample rows
         lines.append("\nSample rows (first 3):")
         for row in df.head(3).to_dict("records"):
-            lines.append(f"  {json.dumps(_sanitize(row), default=str)[:400]}")
+            lines.append(f"  {json.dumps(sanitize_for_json(row), default=str)[:400]}")
 
         # Schema field info
         if schema:
@@ -454,7 +434,7 @@ class ChatService:
         return {
             "content": "\n".join(lines),
             "ai_powered": False,
-            "data": {"type": "anomaly_scan", "findings": _sanitize(findings)},
+            "data": {"type": "anomaly_scan", "findings": sanitize_for_json(findings)},
         }
 
     # ── Fallback handler: health summary ─────────────────────────
@@ -541,7 +521,7 @@ class ChatService:
         return {
             "content": "\n".join(lines),
             "ai_powered": False,
-            "data": {"type": "correlation", "pairs": _sanitize(pairs)},
+            "data": {"type": "correlation", "pairs": sanitize_for_json(pairs)},
         }
 
     # ── Fallback handler: recommendations ────────────────────────
@@ -618,7 +598,7 @@ class ChatService:
         return {
             "content": "\n".join(lines),
             "ai_powered": False,
-            "data": {"type": "variance", "items": _sanitize([{"field": c, "cv": round(v, 3)} for c, v, _ in items])},
+            "data": {"type": "variance", "items": sanitize_for_json([{"field": c, "cv": round(v, 3)} for c, v, _ in items])},
         }
 
     # ── Fallback handler: trends ─────────────────────────────────
@@ -661,7 +641,7 @@ class ChatService:
         return {
             "content": "\n".join(lines),
             "ai_powered": False,
-            "data": {"type": "trends", "trends": _sanitize([{"field": c, "change_pct": round(p, 2), "direction": d} for c, p, d in trends])},
+            "data": {"type": "trends", "trends": sanitize_for_json([{"field": c, "change_pct": round(p, 2), "direction": d} for c, p, d in trends])},
         }
 
     # ── Fallback handler: distribution ───────────────────────────
@@ -720,7 +700,7 @@ class ChatService:
         return {
             "content": "\n".join(lines),
             "ai_powered": False,
-            "data": {"type": "statistics", "statistics": _sanitize(stats)},
+            "data": {"type": "statistics", "statistics": sanitize_for_json(stats)},
         }
 
     # ── Fallback handler: specific field detail ──────────────────

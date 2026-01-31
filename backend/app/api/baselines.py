@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 
 from ..services.baseline_store import baseline_store
 from ..services.data_store import data_store
+from ..utils import load_saved_analysis
 
 router = APIRouter(prefix="/baselines", tags=["baselines"])
 
@@ -24,19 +25,7 @@ async def capture_snapshot(system_id: str):
     records = data_store.get_ingested_records(system_id)
 
     # Try to load latest analysis
-    analysis = None
-    try:
-        import json
-        from pathlib import Path
-        import os
-        data_dir = os.environ.get("DATA_DIR", "/app/data")
-        if not os.path.exists("/app") and os.path.exists(os.path.dirname(__file__)):
-            data_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data")
-        analysis_path = Path(data_dir) / "analyses" / f"{system_id}.json"
-        if analysis_path.exists():
-            analysis = json.loads(analysis_path.read_text())
-    except Exception:
-        pass
+    analysis = load_saved_analysis(system_id)
 
     snapshot = baseline_store.capture_snapshot(system_id, system, records, analysis)
     return {"status": "captured", "snapshot": snapshot}

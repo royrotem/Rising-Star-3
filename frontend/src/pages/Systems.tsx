@@ -20,6 +20,7 @@ import {
 import clsx from 'clsx';
 import { systemsApi } from '../services/api';
 import type { System } from '../types';
+import { getStatusColor, getHealthColor } from '../utils/colors';
 
 interface SystemWithDemo extends System {
   is_demo?: boolean;
@@ -33,26 +34,6 @@ const systemTypeIcons: Record<string, React.ElementType> = {
   industrial: Factory,
   default: Server,
 };
-
-function getStatusColor(status: string) {
-  switch (status) {
-    case 'active': return 'bg-green-500';
-    case 'healthy': return 'bg-green-500';
-    case 'anomaly_detected': return 'bg-orange-500';
-    case 'maintenance': return 'bg-yellow-500';
-    case 'inactive': return 'bg-slate-500';
-    case 'data_ingested': return 'bg-blue-500';
-    case 'configured': return 'bg-green-500';
-    default: return 'bg-slate-500';
-  }
-}
-
-function getHealthColor(score: number | undefined | null) {
-  if (score === undefined || score === null) return 'text-slate-500';
-  if (score >= 90) return 'text-green-500';
-  if (score >= 70) return 'text-yellow-500';
-  return 'text-red-500';
-}
 
 export default function Systems() {
   const navigate = useNavigate();

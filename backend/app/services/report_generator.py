@@ -6,7 +6,6 @@ This is an additive feature module — removing it does not affect core
 analysis or other endpoints.
 """
 
-import io
 import math
 from datetime import datetime
 from typing import Any, Dict, List, Optional

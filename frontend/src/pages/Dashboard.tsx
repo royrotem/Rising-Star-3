@@ -17,6 +17,7 @@ import clsx from 'clsx';
 import { systemsApi } from '../services/api';
 import type { System } from '../types';
 import OnboardingGuide from '../components/OnboardingGuide';
+import { getSeverityBadgeColor, getStatusColor, getHealthColor } from '../utils/colors';
 
 // Mock impact radar data
 const mockImpactRadar = {
@@ -44,33 +45,6 @@ const mockImpactRadar = {
     },
   ],
 };
-
-function getSeverityColor(severity: string) {
-  switch (severity) {
-    case 'critical': return 'text-red-400 bg-red-500/10 border border-red-500/20';
-    case 'high': return 'text-orange-400 bg-orange-500/10 border border-orange-500/20';
-    case 'medium': return 'text-yellow-400 bg-yellow-500/10 border border-yellow-500/20';
-    case 'low': return 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20';
-    default: return 'text-slate-400 bg-slate-500/10 border border-slate-500/20';
-  }
-}
-
-function getStatusColor(status: string) {
-  switch (status) {
-    case 'active': return 'bg-emerald-400';
-    case 'healthy': return 'bg-emerald-400';
-    case 'anomaly_detected': return 'bg-orange-400';
-    case 'maintenance': return 'bg-yellow-400';
-    case 'inactive': return 'bg-slate-500';
-    default: return 'bg-slate-500';
-  }
-}
-
-function getHealthColor(score: number) {
-  if (score >= 90) return 'text-emerald-400';
-  if (score >= 70) return 'text-yellow-400';
-  return 'text-red-400';
-}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -243,7 +217,7 @@ export default function Dashboard() {
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <div className={clsx(
                       'inline-flex px-2.5 py-1 rounded-lg text-xs font-medium',
-                      getSeverityColor(issue.severity)
+                      getSeverityBadgeColor(issue.severity)
                     )}>
                       {issue.impact_score}
                     </div>

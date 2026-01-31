@@ -30,6 +30,7 @@ import { useAnalysisStream } from '../hooks/useAnalysisStream';
 import { AnalysisStreamPanel } from '../components/AnalysisStreamPanel';
 import { reportApi } from '../services/reportApi';
 import BaselinePanel from '../components/BaselinePanel';
+import { getSeverityCardColor } from '../utils/colors';
 
 interface DataStatistics {
   total_records: number;
@@ -110,16 +111,6 @@ interface AnalysisData {
   };
 }
 
-function getSeverityColor(severity: string) {
-  switch (severity) {
-    case 'critical': return 'border-red-500 bg-red-500/10';
-    case 'high': return 'border-orange-500 bg-orange-500/10';
-    case 'medium': return 'border-yellow-500 bg-yellow-500/10';
-    case 'low': return 'border-green-500 bg-green-500/10';
-    default: return 'border-slate-500 bg-slate-500/10';
-  }
-}
-
 function getTrendIcon(trend: string) {
   if (trend === 'degrading') return <TrendingDown className="w-4 h-4 text-red-500" />;
   if (trend === 'improving') return <TrendingDown className="w-4 h-4 text-green-500 rotate-180" />;
@@ -188,7 +179,7 @@ export default function SystemDetail() {
           setStatistics(stats);
         }
       } catch {
-        console.log('No statistics available');
+        // Statistics not available yet
       }
 
       // Load saved analysis (if any)
@@ -557,7 +548,7 @@ export default function SystemDetail() {
                   key={anomaly.id}
                   className={clsx(
                     'p-4 rounded-lg border-l-4 cursor-pointer transition-colors',
-                    getSeverityColor(anomaly.severity),
+                    getSeverityCardColor(anomaly.severity),
                     selectedAnomaly === anomaly.id ? 'ring-2 ring-primary-500' : ''
                   )}
                   onClick={() => setSelectedAnomaly(

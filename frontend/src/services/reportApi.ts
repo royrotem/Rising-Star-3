@@ -1,5 +1,21 @@
 const API_BASE = '/api/v1/reports';
 
+/** Extract filename from Content-Disposition header and trigger browser download. */
+function downloadBlob(blob: Blob, systemId: string, response: Response): void {
+  const disposition = response.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : `UAIE_Report_${systemId.slice(0, 8)}.pdf`;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export const reportApi = {
   /**
    * Download a PDF report for the given system.
@@ -12,18 +28,7 @@ export const reportApi = {
       throw new Error(err.detail || 'Failed to download report');
     }
     const blob = await response.blob();
-    const disposition = response.headers.get('Content-Disposition') || '';
-    const match = disposition.match(/filename="?([^"]+)"?/);
-    const filename = match ? match[1] : `UAIE_Report_${systemId.slice(0, 8)}.pdf`;
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, systemId, response);
   },
 
   /**
@@ -38,17 +43,6 @@ export const reportApi = {
       throw new Error(err.detail || 'Failed to generate report');
     }
     const blob = await response.blob();
-    const disposition = response.headers.get('Content-Disposition') || '';
-    const match = disposition.match(/filename="?([^"]+)"?/);
-    const filename = match ? match[1] : `UAIE_Report_${systemId.slice(0, 8)}.pdf`;
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, systemId, response);
   },
 };

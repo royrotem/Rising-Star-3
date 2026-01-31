@@ -134,7 +134,7 @@ async def analyze_system_stream(system_id: str):
             if ai_cfg.get("enable_ai_agents", True):
                 yield _sse_event("stage", {
                     "stage": "ai_agents",
-                    "message": "Launching AI agent swarm (5 specialized agents)...",
+                    "message": "Launching AI agent swarm (13 specialized agents)...",
                     "progress": 55,
                 })
 

@@ -304,7 +304,7 @@ export default function Dashboard() {
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-medium text-white">AI-Powered Analysis</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            5 specialized agents analyze your data across statistical, domain, pattern, root-cause, and safety dimensions
+            13 specialized agents analyze your data across statistical, domain, pattern, temporal, predictive, safety, compliance, and more
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">

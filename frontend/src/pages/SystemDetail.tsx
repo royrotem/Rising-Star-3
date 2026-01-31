@@ -441,7 +441,7 @@ export default function SystemDetail() {
               {analysis.ai_analysis.ai_powered ? 'LLM Powered' : 'Rule-Based Fallback'}
             </span>
           </div>
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-7 gap-3">
             {analysis.ai_analysis.agent_statuses.map((agent, idx) => (
               <div
                 key={idx}

@@ -109,7 +109,7 @@ export function AnalysisStreamPanel({ stream }: Props) {
             <Brain className="w-3.5 h-3.5" />
             AI Agents
           </h4>
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-7 gap-1.5">
             {agents.map((agent, idx) => (
               <div
                 key={idx}

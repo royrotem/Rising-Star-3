@@ -52,9 +52,18 @@ class IngestionService:
     def __init__(self):
         self.supported_formats = {
             'csv': self._parse_csv,
+            'tsv': self._parse_tsv,
+            'txt': self._parse_text,
+            'dat': self._parse_text,
+            'log': self._parse_log,
             'json': self._parse_json,
             'jsonl': self._parse_jsonl,
+            'ndjson': self._parse_jsonl,
+            'xml': self._parse_xml,
+            'yaml': self._parse_yaml,
+            'yml': self._parse_yaml,
             'parquet': self._parse_parquet,
+            'feather': self._parse_feather,
             'xlsx': self._parse_excel,
             'xls': self._parse_excel,
             'can': self._parse_can_bus,
@@ -170,6 +179,218 @@ class IngestionService:
             return [], {}
 
         records = df.to_dict("records")
+        schema = {col: str(df[col].dtype) for col in df.columns}
+        return records, schema
+
+    async def _parse_tsv(self, file_content: BinaryIO) -> tuple[List[Dict], Dict]:
+        """Parse TSV (tab-separated values) file."""
+        import io as _io
+
+        raw = file_content.read()
+        for encoding in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+            try:
+                content = raw.decode(encoding)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+        else:
+            content = raw.decode("utf-8", errors="replace")
+
+        df = pd.read_csv(_io.StringIO(content), sep="\t")
+        df.dropna(how="all", inplace=True)
+        df.dropna(axis=1, how="all", inplace=True)
+        df.columns = [str(c).strip() for c in df.columns]
+        df = df.loc[:, ~df.columns.str.startswith("Unnamed:")]
+        if df.empty:
+            return [], {}
+        return df.to_dict("records"), {col: str(df[col].dtype) for col in df.columns}
+
+    async def _parse_text(self, file_content: BinaryIO) -> tuple[List[Dict], Dict]:
+        """Parse plain text / .dat files — tries CSV auto-detection, falls back to line-based."""
+        import csv as _csv
+        import io as _io
+
+        raw = file_content.read()
+        for encoding in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+            try:
+                content = raw.decode(encoding)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+        else:
+            content = raw.decode("utf-8", errors="replace")
+
+        # Try to detect if this is tabular data
+        sample = content[:8192]
+        try:
+            dialect = _csv.Sniffer().sniff(sample, delimiters=",;\t|")
+            has_header = _csv.Sniffer().has_header(sample)
+            sep = dialect.delimiter
+        except _csv.Error:
+            sep = None
+            has_header = False
+
+        if sep and has_header:
+            # Looks like tabular data — parse as CSV
+            df = pd.read_csv(_io.StringIO(content), sep=sep)
+            df.dropna(how="all", inplace=True)
+            df.dropna(axis=1, how="all", inplace=True)
+            df.columns = [str(c).strip() for c in df.columns]
+            df = df.loc[:, ~df.columns.str.startswith("Unnamed:")]
+            if not df.empty:
+                return df.to_dict("records"), {col: str(df[col].dtype) for col in df.columns}
+
+        # Fall back to line-based parsing
+        lines = [line.strip() for line in content.strip().splitlines() if line.strip()]
+        if not lines:
+            return [], {}
+
+        records = [{"line_number": i + 1, "content": line} for i, line in enumerate(lines)]
+        return records, {"line_number": "integer", "content": "string"}
+
+    async def _parse_log(self, file_content: BinaryIO) -> tuple[List[Dict], Dict]:
+        """Parse log files — extracts timestamp, level, and message from common log formats."""
+        raw = file_content.read()
+        for encoding in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+            try:
+                content = raw.decode(encoding)
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+        else:
+            content = raw.decode("utf-8", errors="replace")
+
+        lines = [line.strip() for line in content.strip().splitlines() if line.strip()]
+        if not lines:
+            return [], {}
+
+        # Common log patterns: "2024-01-01 12:00:00 INFO message" or "[timestamp] [LEVEL] message"
+        log_pattern = re.compile(
+            r'^[\[(\s]*'
+            r'(\d{4}[-/]\d{2}[-/]\d{2}[\sT]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)'
+            r'[\])\s]*'
+            r'[\[(\s]*'
+            r'(DEBUG|INFO|WARN(?:ING)?|ERROR|CRITICAL|FATAL|TRACE)?'
+            r'[\])\s]*'
+            r'(.*)',
+            re.IGNORECASE
+        )
+
+        records = []
+        for i, line in enumerate(lines):
+            match = log_pattern.match(line)
+            if match:
+                records.append({
+                    "line_number": i + 1,
+                    "timestamp": match.group(1),
+                    "level": (match.group(2) or "UNKNOWN").upper(),
+                    "message": match.group(3).strip(),
+                })
+            else:
+                records.append({
+                    "line_number": i + 1,
+                    "timestamp": None,
+                    "level": "UNKNOWN",
+                    "message": line,
+                })
+
+        schema = {"line_number": "integer", "timestamp": "string", "level": "string", "message": "string"}
+        return records, schema
+
+    async def _parse_xml(self, file_content: BinaryIO) -> tuple[List[Dict], Dict]:
+        """Parse XML files into flat records."""
+        import xml.etree.ElementTree as ET
+        import io as _io
+
+        raw = file_content.read()
+        try:
+            root = ET.fromstring(raw)
+        except ET.ParseError:
+            # Try with encoding declaration stripped
+            content = raw.decode("utf-8", errors="replace")
+            content = re.sub(r'<\?xml[^?]*\?>', '', content)
+            root = ET.fromstring(content)
+
+        records = []
+
+        # If root has repeating child elements, treat each as a record
+        children = list(root)
+        if children:
+            tag_counts: Dict[str, int] = {}
+            for child in children:
+                tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+            # Find the most common child tag — those are likely the data rows
+            most_common_tag = max(tag_counts, key=tag_counts.get)
+
+            for child in children:
+                tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                if tag == most_common_tag:
+                    record = self._xml_element_to_dict(child)
+                    records.append(record)
+
+        if not records:
+            # Single-element XML — flatten the whole thing
+            records = [self._xml_element_to_dict(root)]
+
+        schema = self._infer_json_schema(records[0]) if records else {}
+        return records, schema
+
+    def _xml_element_to_dict(self, element) -> Dict:
+        """Convert an XML element to a flat dictionary."""
+        result = {}
+        # Include attributes
+        for attr, val in element.attrib.items():
+            result[attr] = val
+        # Include child elements
+        for child in element:
+            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+            if len(child) > 0:
+                # Nested element — flatten with prefix
+                nested = self._xml_element_to_dict(child)
+                for k, v in nested.items():
+                    result[f"{tag}_{k}"] = v
+            else:
+                result[tag] = child.text.strip() if child.text else None
+        # If element has text directly and children
+        if element.text and element.text.strip() and not list(element):
+            tag = element.tag.split('}')[-1] if '}' in element.tag else element.tag
+            result[tag] = element.text.strip()
+        return result
+
+    async def _parse_yaml(self, file_content: BinaryIO) -> tuple[List[Dict], Dict]:
+        """Parse YAML/YML files."""
+        try:
+            import yaml
+        except ImportError:
+            raise ValueError("YAML support requires PyYAML. Install it with: pip install pyyaml")
+
+        content = file_content.read().decode("utf-8", errors="replace")
+        data = yaml.safe_load(content)
+
+        if isinstance(data, list):
+            records = [self._flatten_dict(r) if isinstance(r, dict) else {"value": r} for r in data]
+        elif isinstance(data, dict):
+            # If it looks like a list of records under a key, extract that
+            for key, val in data.items():
+                if isinstance(val, list) and len(val) > 1 and isinstance(val[0], dict):
+                    records = [self._flatten_dict(r) for r in val]
+                    break
+            else:
+                records = [self._flatten_dict(data)]
+        else:
+            records = [{"value": data}]
+
+        schema = self._infer_json_schema(records[0]) if records else {}
+        return records, schema
+
+    async def _parse_feather(self, file_content: BinaryIO) -> tuple[List[Dict], Dict]:
+        """Parse Apache Arrow Feather files."""
+        import io as _io
+        raw = file_content.read()
+        df = pd.read_feather(_io.BytesIO(raw))
+        records = df.to_dict('records')
         schema = {col: str(df[col].dtype) for col in df.columns}
         return records, schema
 

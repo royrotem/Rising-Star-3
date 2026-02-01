@@ -320,7 +320,7 @@ export default function NewSystemWizard() {
                 type="file"
                 className="hidden"
                 id="file-upload"
-                accept=".csv,.json,.jsonl,.parquet,.xlsx,.txt,.md,.log"
+                accept=".csv,.tsv,.txt,.dat,.log,.json,.jsonl,.ndjson,.xml,.yaml,.yml,.parquet,.feather,.xlsx,.xls,.can,.bin"
                 multiple
                 onChange={handleFileSelect}
               />

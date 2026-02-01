@@ -130,13 +130,19 @@ export function useAnalysisStream() {
     });
 
     es.onerror = () => {
-      // EventSource will auto-reconnect unless we close it on terminal errors
-      if (es.readyState === EventSource.CLOSED) {
-        setState((prev) => {
-          if (prev.result) return prev; // already got result, ignore
-          return { ...prev, active: false, error: 'Connection lost' };
-        });
-      }
+      // Don't let EventSource auto-reconnect — close immediately on error.
+      // The analysis is a one-shot operation; reconnecting would start a new one
+      // or hit the same timeout again.
+      es.close();
+      eventSourceRef.current = null;
+      setState((prev) => {
+        if (prev.result) return prev; // already got result, ignore
+        return {
+          ...prev,
+          active: false,
+          error: 'Connection lost — the analysis may still be running on the server. Refresh the page to check for results.',
+        };
+      });
     };
   }, []);
 

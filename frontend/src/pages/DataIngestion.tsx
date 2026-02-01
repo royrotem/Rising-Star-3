@@ -161,7 +161,7 @@ export default function DataIngestion() {
                   type="file"
                   className="hidden"
                   id="file-upload"
-                  accept=".csv,.json,.jsonl,.parquet"
+                  accept=".csv,.tsv,.txt,.dat,.log,.json,.jsonl,.ndjson,.xml,.yaml,.yml,.parquet,.feather,.xlsx,.xls,.can,.bin"
                   onChange={handleFileSelect}
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">

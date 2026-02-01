@@ -44,6 +44,11 @@ try:
 except ImportError:
     HAS_HTTPX = False
 
+# Per-agent timeout in seconds — prevents any single agent from running forever
+AGENT_TIMEOUT = 60
+# Global orchestrator timeout — total wall-clock limit for all agents combined
+ORCHESTRATOR_TIMEOUT = 180
+
 
 def _get_api_key() -> str:
     """Get the Anthropic API key from app settings (with env fallback)."""
@@ -142,10 +147,10 @@ class BaseAgent:
         self._init_client()
 
     def _init_client(self):
-        """Initialize or refresh the Anthropic client using the current API key."""
+        """Initialize or refresh the async Anthropic client using the current API key."""
         api_key = _get_api_key()
         if HAS_ANTHROPIC and api_key:
-            self.client = anthropic.Anthropic(api_key=api_key)
+            self.client = anthropic.AsyncAnthropic(api_key=api_key)
         else:
             self.client = None
 
@@ -186,14 +191,20 @@ class BaseAgent:
         prompt = self._build_prompt(system_type, system_name, data_summary, metadata_context)
 
         try:
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                system=self._system_prompt(system_type),
-                messages=[{"role": "user", "content": prompt}],
+            response = await asyncio.wait_for(
+                self.client.messages.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    system=self._system_prompt(system_type),
+                    messages=[{"role": "user", "content": prompt}],
+                ),
+                timeout=AGENT_TIMEOUT,
             )
             text = response.content[0].text
             return self._parse_response(text)
+        except asyncio.TimeoutError:
+            print(f"[{self.name}] Timed out after {AGENT_TIMEOUT}s — using fallback")
+            return self._fallback_analyze(system_type, data_profile)
         except Exception as e:
             print(f"[{self.name}] LLM call failed: {e}")
             return self._fallback_analyze(system_type, data_profile)
@@ -498,16 +509,19 @@ class RootCauseInvestigator(BaseAgent):
         )
 
         try:
-            # Use extended thinking for deeper reasoning
-            response = self.client.messages.create(
-                model=self.model,
-                max_tokens=16000,
-                temperature=1,  # Required for extended thinking
-                thinking={
-                    "type": "enabled",
-                    "budget_tokens": 10000,
-                },
-                messages=[{"role": "user", "content": prompt}],
+            # Use extended thinking for deeper reasoning (with timeout)
+            response = await asyncio.wait_for(
+                self.client.messages.create(
+                    model=self.model,
+                    max_tokens=16000,
+                    temperature=1,  # Required for extended thinking
+                    thinking={
+                        "type": "enabled",
+                        "budget_tokens": 5000,
+                    },
+                    messages=[{"role": "user", "content": prompt}],
+                ),
+                timeout=AGENT_TIMEOUT,
             )
 
             # Extract the text response and thinking
@@ -525,18 +539,24 @@ class RootCauseInvestigator(BaseAgent):
                 f.raw_reasoning = thinking_text[:1000] if thinking_text else ""
             return findings
 
+        except asyncio.TimeoutError:
+            print(f"[{self.name}] Extended thinking timed out after {AGENT_TIMEOUT}s — using fallback")
+            return self._fallback_analyze(system_type, data_profile)
         except Exception as e:
             print(f"[{self.name}] Extended thinking call failed: {e}")
             # Fallback to regular call
             try:
-                response = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    messages=[{"role": "user", "content": prompt}],
+                response = await asyncio.wait_for(
+                    self.client.messages.create(
+                        model=self.model,
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}],
+                    ),
+                    timeout=AGENT_TIMEOUT,
                 )
                 text = response.content[0].text
                 return self._parse_response(text)
-            except Exception as e2:
+            except (asyncio.TimeoutError, Exception) as e2:
                 print(f"[{self.name}] Regular call also failed: {e2}")
                 return self._fallback_analyze(system_type, data_profile)
 
@@ -1196,14 +1216,31 @@ class AgentOrchestrator:
         metadata_context: str = "",
         enable_web_grounding: bool = True,
     ) -> Dict[str, Any]:
-        """Run all agents and unify results."""
+        """Run all agents in parallel and unify results.
 
-        # Run all agents in parallel
+        Has a global timeout of ORCHESTRATOR_TIMEOUT seconds.  Individual
+        agents also have their own AGENT_TIMEOUT.
+        """
+
+        # Run all agents truly in parallel (AsyncAnthropic enables this)
         tasks = [
             agent.analyze(system_type, system_name, data_profile, metadata_context)
             for agent in self.agents
         ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=ORCHESTRATOR_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            print(f"[Orchestrator] Global timeout ({ORCHESTRATOR_TIMEOUT}s) hit — collecting partial results")
+            # Cancel remaining tasks and use whatever we have
+            results = []
+            for task in tasks:
+                if hasattr(task, 'result') and not isinstance(task, Exception):
+                    results.append(task)
+                else:
+                    results.append(TimeoutError("Orchestrator global timeout"))
 
         # Collect all findings
         all_findings: List[AgentFinding] = []

@@ -4,21 +4,17 @@ import {
   Save,
   Timer,
   Power,
+  CheckCircle2,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { systemsApi, schedulesApi } from '../services/api';
 import type { System, Schedule } from '../types';
 
-interface AISettings {
-  api_key: string;
-  enable_ai_agents: boolean;
-}
-
 export default function Settings() {
-  const [aiSettings, setAiSettings] = useState<AISettings>({
-    api_key: '',
-    enable_ai_agents: false,
-  });
+  const [apiKey, setApiKey] = useState('');
+  const [maskedKey, setMaskedKey] = useState('');
+  const [keyEdited, setKeyEdited] = useState(false);
+  const [enableAiAgents, setEnableAiAgents] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showKey, setShowKey] = useState(false);
@@ -35,10 +31,21 @@ export default function Settings() {
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('/api/v1/settings/ai');
+      const response = await fetch('/api/v1/settings/');
       if (response.ok) {
         const data = await response.json();
-        setAiSettings(data);
+        const ai = data.ai || {};
+        setEnableAiAgents(ai.enable_ai_agents ?? true);
+        // Backend returns masked key like "sk-ant-a..." or "***configured***"
+        const key = ai.anthropic_api_key || '';
+        if (key && key !== '***configured***') {
+          setMaskedKey(key);
+        } else if (key === '***configured***') {
+          setMaskedKey(key);
+        }
+        // Don't set apiKey — keep it empty so user can type fresh
+        setApiKey('');
+        setKeyEdited(false);
       }
     } catch {
       // Settings not available
@@ -64,18 +71,36 @@ export default function Settings() {
     setSaving(true);
     setSaved(false);
     try {
-      await fetch('/api/v1/settings/ai', {
+      const aiPayload: Record<string, unknown> = {
+        enable_ai_agents: enableAiAgents,
+      };
+      // Only send the API key if the user actually typed a new one
+      if (keyEdited && apiKey.trim()) {
+        aiPayload.anthropic_api_key = apiKey.trim();
+      } else {
+        // Send the masked key back — backend will recognize it and keep existing
+        aiPayload.anthropic_api_key = maskedKey || null;
+      }
+
+      await fetch('/api/v1/settings/', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(aiSettings),
+        body: JSON.stringify({ ai: aiPayload }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+      // Reload to get updated masked key
+      await loadSettings();
     } catch {
       // Save failed
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleKeyChange = (value: string) => {
+    setApiKey(value);
+    setKeyEdited(true);
   };
 
   const toggleWatchdog = async (systemId: string, currentlyEnabled: boolean) => {
@@ -107,6 +132,8 @@ export default function Settings() {
     }
   };
 
+  const hasConfiguredKey = !!maskedKey;
+
   return (
     <div className="p-8 max-w-3xl page-enter">
       <div className="mb-10">
@@ -118,30 +145,43 @@ export default function Settings() {
 
       {/* AI Configuration */}
       <div className="glass-card mb-8">
-        <div className="px-6 py-4 border-b border-stone-800">
+        <div className="px-6 py-4 border-b border-stone-700/60">
           <h2 className="text-sm font-medium text-white">AI Configuration</h2>
         </div>
         <div className="p-6 space-y-5">
           {/* API Key */}
           <div>
             <label className="block text-xs font-medium text-stone-400 mb-2">
-              API Key
+              Anthropic API Key
             </label>
             <div className="relative">
               <input
                 type={showKey ? 'text' : 'password'}
-                value={aiSettings.api_key}
-                onChange={(e) => setAiSettings(prev => ({ ...prev, api_key: e.target.value }))}
-                placeholder="sk-ant-..."
-                className="w-full px-4 py-2.5 bg-stone-900 border border-stone-800 rounded-lg text-sm text-white placeholder-stone-600 focus:outline-none focus:border-stone-600 transition-colors pr-16"
+                value={keyEdited ? apiKey : ''}
+                onChange={(e) => handleKeyChange(e.target.value)}
+                placeholder={hasConfiguredKey ? maskedKey : 'sk-ant-api03-...'}
+                className="w-full px-4 py-2.5 bg-stone-800 border border-stone-700/60 rounded-lg text-sm text-white placeholder-stone-500 focus:outline-none focus:border-stone-500 transition-colors pr-16"
               />
               <button
                 onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-600 hover:text-stone-400 text-xs transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 text-xs transition-colors"
               >
                 {showKey ? 'Hide' : 'Show'}
               </button>
             </div>
+            {hasConfiguredKey && !keyEdited && (
+              <div className="flex items-center gap-1.5 mt-2">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <p className="text-xs text-emerald-400">
+                  API key configured
+                </p>
+              </div>
+            )}
+            {keyEdited && apiKey.trim() && (
+              <p className="text-xs text-stone-500 mt-2">
+                New key will be saved when you click Save
+              </p>
+            )}
           </div>
 
           {/* AI Agents Toggle */}
@@ -153,15 +193,15 @@ export default function Settings() {
               </p>
             </div>
             <button
-              onClick={() => setAiSettings(prev => ({ ...prev, enable_ai_agents: !prev.enable_ai_agents }))}
+              onClick={() => setEnableAiAgents(!enableAiAgents)}
               className={clsx(
                 'w-10 h-5.5 rounded-full transition-colors duration-200 relative',
-                aiSettings.enable_ai_agents ? 'bg-primary-500' : 'bg-stone-700'
+                enableAiAgents ? 'bg-primary-500' : 'bg-stone-600'
               )}
             >
               <div className={clsx(
                 'w-4 h-4 bg-white rounded-full absolute top-0.5 transition-transform duration-200',
-                aiSettings.enable_ai_agents ? 'translate-x-5' : 'translate-x-0.5'
+                enableAiAgents ? 'translate-x-5' : 'translate-x-0.5'
               )} />
             </button>
           </div>
@@ -192,11 +232,11 @@ export default function Settings() {
       {/* Watchdog Management */}
       {systems.length > 0 && (
         <div className="glass-card">
-          <div className="px-6 py-4 border-b border-stone-800 flex items-center gap-2">
+          <div className="px-6 py-4 border-b border-stone-700/60 flex items-center gap-2">
             <Timer className="w-4 h-4 text-stone-500" />
             <h2 className="text-sm font-medium text-white">Watchdog Schedules</h2>
           </div>
-          <div className="divide-y divide-stone-800/50">
+          <div className="divide-y divide-stone-700/40">
             {systems.map((sys) => {
               const sched = schedules[sys.id];
               const isEnabled = sched?.enabled ?? false;
@@ -206,9 +246,9 @@ export default function Settings() {
                 <div key={sys.id} className="px-6 py-4 flex items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-white truncate">{sys.name}</p>
-                    <p className="text-xs text-stone-600 capitalize">{sys.system_type.replace('_', ' ')}</p>
+                    <p className="text-xs text-stone-500 capitalize">{sys.system_type.replace('_', ' ')}</p>
                     {sched && sched.run_count > 0 && (
-                      <p className="text-[11px] text-stone-600 mt-0.5 tabular-nums">
+                      <p className="text-[11px] text-stone-500 mt-0.5 tabular-nums">
                         {sched.run_count} runs
                       </p>
                     )}
@@ -221,7 +261,7 @@ export default function Settings() {
                         value={sched?.interval || '24h'}
                         onChange={(e) => changeWatchdogInterval(sys.id, e.target.value)}
                         disabled={isSaving}
-                        className="bg-stone-900 border border-stone-800 rounded-lg px-2.5 py-1.5 text-xs text-stone-300 focus:outline-none focus:border-stone-600 disabled:opacity-50"
+                        className="bg-stone-800 border border-stone-700/60 rounded-lg px-2.5 py-1.5 text-xs text-stone-300 focus:outline-none focus:border-stone-500 disabled:opacity-50"
                       >
                         <option value="1h">1h</option>
                         <option value="6h">6h</option>
@@ -239,7 +279,7 @@ export default function Settings() {
                         'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                         isEnabled
                           ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15'
-                          : 'bg-stone-800 text-stone-500 hover:bg-stone-700 hover:text-stone-300'
+                          : 'bg-stone-700 text-stone-400 hover:bg-stone-600 hover:text-stone-300'
                       )}
                     >
                       {isSaving ? (

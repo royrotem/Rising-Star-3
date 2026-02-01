@@ -220,7 +220,7 @@ export default function AnomalyExplorer() {
       <div className="flex items-center gap-4 mb-6">
         <Link
           to={`/systems/${systemId}`}
-          className="p-2 hover:bg-stone-800 rounded-lg transition-colors"
+          className="p-2 hover:bg-stone-700 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-stone-400" />
         </Link>
@@ -239,7 +239,7 @@ export default function AnomalyExplorer() {
               'p-2 rounded-lg transition-colors',
               viewMode === 'list'
                 ? 'bg-primary-500/10 text-primary-400'
-                : 'text-stone-500 hover:text-stone-300'
+                : 'text-stone-400 hover:text-stone-300'
             )}
           >
             <List className="w-4 h-4" />
@@ -250,7 +250,7 @@ export default function AnomalyExplorer() {
               'p-2 rounded-lg transition-colors',
               viewMode === 'grid'
                 ? 'bg-primary-500/10 text-primary-400'
-                : 'text-stone-500 hover:text-stone-300'
+                : 'text-stone-400 hover:text-stone-300'
             )}
           >
             <BarChart3 className="w-4 h-4" />
@@ -299,7 +299,7 @@ export default function AnomalyExplorer() {
                       style={{ height: `${Math.max(pct, count > 0 ? 10 : 2)}%` }}
                     />
                   </div>
-                  <span className="text-[10px] text-stone-500 capitalize">{sev}</span>
+                  <span className="text-[10px] text-stone-400 capitalize">{sev}</span>
                 </button>
               );
             })}
@@ -311,20 +311,20 @@ export default function AnomalyExplorer() {
       <div className="flex items-center gap-3 mb-5">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search anomalies..."
-            className="w-full pl-9 pr-4 py-2 bg-stone-800/60 border border-stone-700/50 rounded-xl text-sm text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+            className="w-full pl-9 pr-4 py-2 bg-stone-700/60 border border-stone-600/50 rounded-xl text-sm text-white placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-colors"
           />
         </div>
 
         {/* Type filter dropdown */}
         {allTypes.length > 1 && (
           <div className="relative group">
-            <button className="flex items-center gap-2 px-3 py-2 bg-stone-800/60 border border-stone-700/50 rounded-xl text-xs text-stone-400 hover:text-stone-200 transition-colors">
+            <button className="flex items-center gap-2 px-3 py-2 bg-stone-700/60 border border-stone-600/50 rounded-xl text-xs text-stone-400 hover:text-stone-200 transition-colors">
               <Filter className="w-3.5 h-3.5" />
               Type
               {typeFilter.length > 0 && (
@@ -333,7 +333,7 @@ export default function AnomalyExplorer() {
                 </span>
               )}
             </button>
-            <div className="absolute top-full mt-1 right-0 bg-stone-800 border border-stone-700 rounded-xl shadow-xl p-2 min-w-[200px] hidden group-hover:block z-20">
+            <div className="absolute top-full mt-1 right-0 bg-stone-700 border border-stone-600 rounded-xl shadow-xl p-2 min-w-[200px] hidden group-hover:block z-20">
               {allTypes.map((type) => (
                 <button
                   key={type}
@@ -342,7 +342,7 @@ export default function AnomalyExplorer() {
                     'w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors',
                     typeFilter.includes(type)
                       ? 'bg-primary-500/10 text-primary-400'
-                      : 'text-stone-400 hover:bg-stone-700/50 hover:text-stone-200'
+                      : 'text-stone-400 hover:bg-stone-600/50 hover:text-stone-200'
                   )}
                 >
                   {type.replace(/_/g, ' ')}
@@ -354,11 +354,11 @@ export default function AnomalyExplorer() {
 
         {/* Sort */}
         <div className="relative group">
-          <button className="flex items-center gap-2 px-3 py-2 bg-stone-800/60 border border-stone-700/50 rounded-xl text-xs text-stone-400 hover:text-stone-200 transition-colors">
+          <button className="flex items-center gap-2 px-3 py-2 bg-stone-700/60 border border-stone-600/50 rounded-xl text-xs text-stone-400 hover:text-stone-200 transition-colors">
             <SortDesc className="w-3.5 h-3.5" />
             Sort
           </button>
-          <div className="absolute top-full mt-1 right-0 bg-stone-800 border border-stone-700 rounded-xl shadow-xl p-2 min-w-[180px] hidden group-hover:block z-20">
+          <div className="absolute top-full mt-1 right-0 bg-stone-700 border border-stone-600 rounded-xl shadow-xl p-2 min-w-[180px] hidden group-hover:block z-20">
             {([
               ['impact_score', 'Impact Score'],
               ['confidence', 'Confidence'],
@@ -372,7 +372,7 @@ export default function AnomalyExplorer() {
                   'w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center justify-between',
                   sortKey === key
                     ? 'bg-primary-500/10 text-primary-400'
-                    : 'text-stone-400 hover:bg-stone-700/50 hover:text-stone-200'
+                    : 'text-stone-400 hover:bg-stone-600/50 hover:text-stone-200'
                 )}
               >
                 {label}
@@ -398,7 +398,7 @@ export default function AnomalyExplorer() {
         )}
 
         {/* Count */}
-        <span className="text-xs text-stone-500 ml-auto tabular-nums">
+        <span className="text-xs text-stone-400 ml-auto tabular-nums">
           {filtered.length} / {anomalies.length}
         </span>
       </div>
@@ -406,7 +406,7 @@ export default function AnomalyExplorer() {
       {/* Anomaly List */}
       {filtered.length === 0 ? (
         <div className="text-center py-16">
-          <CheckCircle className="w-12 h-12 text-stone-600 mx-auto mb-3" />
+          <CheckCircle className="w-12 h-12 text-stone-400 mx-auto mb-3" />
           <p className="text-stone-400 font-medium">
             {anomalies.length === 0
               ? 'No anomalies detected'
@@ -450,7 +450,7 @@ export default function AnomalyExplorer() {
                       )}>
                         {anomaly.severity}
                       </span>
-                      <span className="text-[10px] text-stone-600 font-mono">
+                      <span className="text-[10px] text-stone-400 font-mono">
                         {anomaly.type.replace(/_/g, ' ')}
                       </span>
                     </div>
@@ -460,7 +460,7 @@ export default function AnomalyExplorer() {
                     <span className="text-xs font-semibold text-stone-300 tabular-nums">
                       {anomaly.impact_score.toFixed(1)}
                     </span>
-                    <span className="text-[10px] text-stone-600">impact</span>
+                    <span className="text-[10px] text-stone-400">impact</span>
                   </div>
                 </div>
 
@@ -477,7 +477,7 @@ export default function AnomalyExplorer() {
                         style={{ width: `${anomaly.confidence * 100}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-stone-500 tabular-nums">
+                    <span className="text-[10px] text-stone-400 tabular-nums">
                       {(anomaly.confidence * 100).toFixed(0)}%
                     </span>
                   </div>
@@ -500,7 +500,7 @@ export default function AnomalyExplorer() {
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div
-                    className="mt-3 pt-3 border-t border-stone-700/50 space-y-3 animate-fade-in"
+                    className="mt-3 pt-3 border-t border-stone-600/50 space-y-3 animate-fade-in"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* AI Explanation */}
@@ -586,7 +586,7 @@ export default function AnomalyExplorer() {
                         </h4>
                         <div className="space-y-1.5">
                           {anomaly.agent_perspectives.map((p, idx) => (
-                            <div key={idx} className="p-2 bg-stone-800/50 rounded-lg">
+                            <div key={idx} className="p-2 bg-stone-700/50 rounded-lg">
                               <span className="text-[10px] font-medium text-blue-300">{p.agent}</span>
                               <p className="text-[10px] text-stone-400 mt-0.5">{p.perspective}</p>
                             </div>

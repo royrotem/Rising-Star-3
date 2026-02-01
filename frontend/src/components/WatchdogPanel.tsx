@@ -78,11 +78,11 @@ export default function WatchdogPanel({ systemId }: WatchdogPanelProps) {
         <div className="flex items-center gap-3">
           <Timer className={clsx(
             'w-4 h-4',
-            isEnabled ? 'text-primary-400' : 'text-stone-600'
+            isEnabled ? 'text-primary-400' : 'text-stone-400'
           )} />
           <div>
             <p className="text-sm text-white">Watchdog Mode</p>
-            <p className="text-xs text-stone-500 mt-0.5">
+            <p className="text-xs text-stone-400 mt-0.5">
               {isEnabled
                 ? `Auto-analysis ${schedule?.interval || '24h'} · ${schedule?.run_count || 0} runs`
                 : 'Scheduled auto-analysis (disabled)'}
@@ -96,7 +96,7 @@ export default function WatchdogPanel({ systemId }: WatchdogPanelProps) {
               value={schedule?.interval || '24h'}
               onChange={(e) => changeInterval(e.target.value)}
               disabled={saving}
-              className="bg-stone-900 border border-stone-800 rounded-lg px-2.5 py-1.5 text-xs text-stone-300 focus:outline-none focus:border-stone-600"
+              className="bg-stone-700 border border-stone-600 rounded-lg px-2.5 py-1.5 text-xs text-stone-300 focus:outline-none focus:border-stone-400"
             >
               {INTERVALS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -111,7 +111,7 @@ export default function WatchdogPanel({ systemId }: WatchdogPanelProps) {
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
               isEnabled
                 ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15'
-                : 'bg-stone-800 text-stone-500 hover:bg-stone-700 hover:text-stone-300'
+                : 'bg-stone-600 text-stone-300 hover:bg-stone-500 hover:text-stone-200'
             )}
           >
             {saving ? (

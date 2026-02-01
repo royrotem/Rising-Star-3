@@ -105,7 +105,7 @@ interface AnalysisData {
 function getTrendIcon(trend: string) {
   if (trend === 'degrading') return <TrendingDown className="w-3.5 h-3.5 text-red-400" />;
   if (trend === 'improving') return <TrendingDown className="w-3.5 h-3.5 text-emerald-400 rotate-180" />;
-  return <Activity className="w-3.5 h-3.5 text-stone-600" />;
+  return <Activity className="w-3.5 h-3.5 text-stone-400" />;
 }
 
 export default function SystemDetail() {
@@ -225,7 +225,7 @@ export default function SystemDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-6 h-6 text-stone-600 animate-spin" />
+        <Loader2 className="w-6 h-6 text-stone-400 animate-spin" />
       </div>
     );
   }
@@ -244,7 +244,7 @@ export default function SystemDetail() {
   if (!system) {
     return (
       <div className="p-8 text-center">
-        <p className="text-stone-500">System not found</p>
+        <p className="text-stone-400">System not found</p>
         <Link to="/systems" className="text-primary-400 hover:text-primary-300 text-sm">
           Back to Systems
         </Link>
@@ -258,17 +258,17 @@ export default function SystemDetail() {
     <div className="p-8 page-enter">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Link to="/systems" className="p-2 hover:bg-stone-800 rounded-lg transition-colors">
-          <ArrowLeft className="w-4 h-4 text-stone-500" />
+        <Link to="/systems" className="p-2 hover:bg-stone-700 rounded-lg transition-colors">
+          <ArrowLeft className="w-4 h-4 text-stone-400" />
         </Link>
         <div className="flex-1">
           <h1 className="text-xl font-semibold text-white">{system.name}</h1>
-          <p className="text-stone-500 text-sm capitalize">{system.system_type.replace('_', ' ')}</p>
+          <p className="text-stone-400 text-sm capitalize">{system.system_type.replace('_', ' ')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
             to={`/systems/${systemId}/chat`}
-            className="flex items-center gap-2 px-3.5 py-2 text-stone-400 hover:text-white hover:bg-stone-800 rounded-lg text-sm transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 text-stone-400 hover:text-white hover:bg-stone-700 rounded-lg text-sm transition-colors"
           >
             <MessageSquare className="w-4 h-4" />
             Ask AI
@@ -276,14 +276,14 @@ export default function SystemDetail() {
           <button
             onClick={handleDownloadReport}
             disabled={downloading}
-            className="flex items-center gap-2 px-3.5 py-2 text-stone-400 hover:text-white hover:bg-stone-800 disabled:opacity-50 rounded-lg text-sm transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 text-stone-400 hover:text-white hover:bg-stone-700 disabled:opacity-50 rounded-lg text-sm transition-colors"
           >
             <Download className={clsx("w-4 h-4", downloading && "animate-bounce")} />
             PDF
           </button>
           <button
             onClick={() => navigate('/systems/new')}
-            className="flex items-center gap-2 px-3.5 py-2 text-stone-400 hover:text-white hover:bg-stone-800 rounded-lg text-sm transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 text-stone-400 hover:text-white hover:bg-stone-700 rounded-lg text-sm transition-colors"
           >
             <Upload className="w-4 h-4" />
             Upload
@@ -311,7 +311,7 @@ export default function SystemDetail() {
       {!hasData && (
         <div className="mb-8 glass-card p-6">
           <h3 className="text-sm font-medium text-white mb-1">No Data Ingested</h3>
-          <p className="text-xs text-stone-500 mb-4">
+          <p className="text-xs text-stone-400 mb-4">
             Upload telemetry data to enable analysis and anomaly detection.
           </p>
           <button
@@ -365,7 +365,7 @@ export default function SystemDetail() {
                   {analysis.health_score.toFixed(0)}%
                 </div>
               ) : (
-                <div className="text-3xl text-stone-700">--</div>
+                <div className="text-3xl text-stone-500">--</div>
               )}
             </div>
           </div>
@@ -375,19 +375,19 @@ export default function SystemDetail() {
       {/* AI Chat link */}
       <Link
         to={`/systems/${systemId}/chat`}
-        className="block mb-6 glass-card p-4 hover:border-stone-700 transition-all group"
+        className="block mb-6 glass-card p-4 hover:border-stone-500 transition-all group"
       >
         <div className="flex items-center gap-3">
-          <MessageSquare className="w-4 h-4 text-stone-600 group-hover:text-primary-400 transition-colors" />
+          <MessageSquare className="w-4 h-4 text-stone-400 group-hover:text-primary-400 transition-colors" />
           <div className="flex-1">
             <p className="text-sm text-stone-300 group-hover:text-white transition-colors">
               Ask AI about this system
             </p>
-            <p className="text-xs text-stone-600 mt-0.5">
+            <p className="text-xs text-stone-400 mt-0.5">
               Natural language queries about anomalies, patterns, and recommendations
             </p>
           </div>
-          <ChevronRight className="w-4 h-4 text-stone-700 group-hover:text-stone-500 transition-colors" />
+          <ChevronRight className="w-4 h-4 text-stone-500 group-hover:text-stone-400 transition-colors" />
         </div>
       </Link>
 
@@ -403,7 +403,7 @@ export default function SystemDetail() {
               'px-2 py-0.5 rounded text-[10px] font-medium',
               analysis.ai_analysis.ai_powered
                 ? 'bg-primary-500/10 text-primary-400'
-                : 'bg-stone-800 text-stone-500'
+                : 'bg-stone-700 text-stone-400'
             )}>
               {analysis.ai_analysis.ai_powered ? 'LLM Powered' : 'Rule-Based'}
             </span>
@@ -420,14 +420,14 @@ export default function SystemDetail() {
                 )}
               >
                 <p className="text-[11px] font-medium text-stone-300 truncate">{agent.agent}</p>
-                <p className="text-[10px] text-stone-600 mt-0.5">
+                <p className="text-[10px] text-stone-400 mt-0.5">
                   {agent.status === 'success' ? `${agent.findings} findings` : 'Error'}
                 </p>
               </div>
             ))}
           </div>
           {analysis.ai_analysis.total_findings_raw > 0 && (
-            <p className="text-[11px] text-stone-600 mt-3">
+            <p className="text-[11px] text-stone-400 mt-3">
               {analysis.ai_analysis.total_findings_raw} raw findings → {analysis.ai_analysis.total_anomalies_unified} unified anomalies
             </p>
           )}
@@ -452,7 +452,7 @@ export default function SystemDetail() {
                   ? 'bg-red-500/10 border border-red-500/15'
                   : insight.toLowerCase().includes('warning') || insight.toLowerCase().includes('high')
                   ? 'bg-orange-500/10 border border-orange-500/15'
-                  : 'bg-stone-800/50'
+                  : 'bg-stone-600/50'
               )}>
                 {insight}
               </div>
@@ -469,12 +469,12 @@ export default function SystemDetail() {
       <div className="grid grid-cols-2 gap-6">
         {/* Anomalies */}
         <div className="glass-card">
-          <div className="px-6 py-4 border-b border-stone-800 flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-stone-600/40 flex items-center justify-between">
             <p className="text-sm font-medium text-white">Detected Anomalies</p>
             {analysis && analysis.anomalies.length > 0 && systemId && (
               <Link
                 to={`/systems/${systemId}/anomalies`}
-                className="text-xs text-stone-500 hover:text-stone-300 transition-colors"
+                className="text-xs text-stone-400 hover:text-stone-300 transition-colors"
               >
                 Explore All
               </Link>
@@ -486,7 +486,7 @@ export default function SystemDetail() {
                 <p className="text-stone-400 text-sm">
                   {hasData ? 'No anomalies detected' : 'No data to analyze'}
                 </p>
-                <p className="text-stone-600 text-xs mt-1">
+                <p className="text-stone-400 text-xs mt-1">
                   {hasData
                     ? 'System operating within normal parameters'
                     : 'Upload data and run analysis'}
@@ -507,35 +507,35 @@ export default function SystemDetail() {
                 >
                   <div className="flex items-start justify-between mb-1.5">
                     <h3 className="text-sm font-medium text-white">{anomaly.title}</h3>
-                    <span className="text-xs text-stone-500 tabular-nums ml-3 flex-shrink-0">
+                    <span className="text-xs text-stone-400 tabular-nums ml-3 flex-shrink-0">
                       {anomaly.impact_score.toFixed(1)}
                     </span>
                   </div>
                   <p className="text-xs text-stone-400 leading-relaxed">{anomaly.description}</p>
 
                   {selectedAnomaly === anomaly.id && (
-                    <div className="mt-4 pt-3 border-t border-stone-700/50 space-y-3">
+                    <div className="mt-4 pt-3 border-t border-stone-600/50 space-y-3">
                       {anomaly.confidence && (
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-stone-600">Confidence</span>
-                          <div className="flex-1 bg-stone-700/50 rounded-full h-1.5 max-w-[80px]">
+                          <span className="text-[11px] text-stone-400">Confidence</span>
+                          <div className="flex-1 bg-stone-600/50 rounded-full h-1.5 max-w-[80px]">
                             <div
                               className="bg-primary-500 h-1.5 rounded-full"
                               style={{ width: `${anomaly.confidence * 100}%` }}
                             />
                           </div>
-                          <span className="text-[11px] text-stone-500 tabular-nums">{(anomaly.confidence * 100).toFixed(0)}%</span>
+                          <span className="text-[11px] text-stone-400 tabular-nums">{(anomaly.confidence * 100).toFixed(0)}%</span>
                         </div>
                       )}
 
                       <div>
-                        <p className="text-[11px] text-stone-500 mb-1">Analysis</p>
+                        <p className="text-[11px] text-stone-400 mb-1">Analysis</p>
                         <p className="text-xs text-stone-300 leading-relaxed">{anomaly.natural_language_explanation}</p>
                       </div>
 
                       {anomaly.possible_causes && anomaly.possible_causes.length > 0 && (
                         <div>
-                          <p className="text-[11px] text-stone-500 mb-1">Possible Causes</p>
+                          <p className="text-[11px] text-stone-400 mb-1">Possible Causes</p>
                           <ul className="space-y-1">
                             {anomaly.possible_causes.map((cause, idx) => (
                               <li key={idx} className="text-xs text-stone-300 pl-3 relative before:content-[''] before:absolute before:left-0 before:top-[7px] before:w-1 before:h-1 before:bg-stone-600 before:rounded-full">
@@ -548,14 +548,14 @@ export default function SystemDetail() {
 
                       {anomaly.recommendations && anomaly.recommendations.length > 0 && (
                         <div>
-                          <p className="text-[11px] text-stone-500 mb-1">Recommendations</p>
+                          <p className="text-[11px] text-stone-400 mb-1">Recommendations</p>
                           {anomaly.recommendations.map((rec, idx) => (
                             <div key={idx} className="flex items-start gap-2 text-xs mb-1.5">
                               <span className={clsx(
                                 'px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0',
                                 rec.priority === 'immediate' || rec.priority === 'high' ? 'bg-red-500/10 text-red-400' :
                                 rec.priority === 'medium' ? 'bg-yellow-500/10 text-yellow-400' :
-                                'bg-stone-800 text-stone-500'
+                                'bg-stone-700 text-stone-400'
                               )}>
                                 {rec.priority}
                               </span>
@@ -570,7 +570,7 @@ export default function SystemDetail() {
                           {anomaly.contributing_agents.map((agent, idx) => (
                             <span
                               key={idx}
-                              className="px-2 py-0.5 bg-stone-800 rounded text-[10px] text-stone-400"
+                              className="px-2 py-0.5 bg-stone-700 rounded text-[10px] text-stone-400"
                             >
                               {agent}
                             </span>
@@ -580,12 +580,12 @@ export default function SystemDetail() {
 
                       {anomaly.agent_perspectives && anomaly.agent_perspectives.length > 1 && (
                         <div>
-                          <p className="text-[11px] text-stone-500 mb-1">Perspectives</p>
+                          <p className="text-[11px] text-stone-400 mb-1">Perspectives</p>
                           <div className="space-y-1.5">
                             {anomaly.agent_perspectives.map((p, idx) => (
-                              <div key={idx} className="p-2 bg-stone-800/50 rounded-lg">
+                              <div key={idx} className="p-2 bg-stone-600/50 rounded-lg">
                                 <span className="text-[10px] font-medium text-stone-400">{p.agent}</span>
-                                <p className="text-[10px] text-stone-500 mt-0.5">{p.perspective}</p>
+                                <p className="text-[10px] text-stone-400 mt-0.5">{p.perspective}</p>
                               </div>
                             ))}
                           </div>
@@ -594,7 +594,7 @@ export default function SystemDetail() {
 
                       {anomaly.web_references && anomaly.web_references.length > 0 && (
                         <div>
-                          <p className="text-[11px] text-stone-500 mb-1">References</p>
+                          <p className="text-[11px] text-stone-400 mb-1">References</p>
                           <ul className="space-y-0.5">
                             {anomaly.web_references.map((ref, idx) => (
                               <li key={idx}>
@@ -631,7 +631,7 @@ export default function SystemDetail() {
 
         {/* Engineering Margins */}
         <div className="glass-card">
-          <div className="px-6 py-4 border-b border-stone-800">
+          <div className="px-6 py-4 border-b border-stone-600/40">
             <p className="text-sm font-medium text-white">Engineering Margins</p>
           </div>
           <div className="p-4 space-y-3">
@@ -640,7 +640,7 @@ export default function SystemDetail() {
                 <p className="text-stone-400 text-sm">
                   {hasData ? 'No margins calculated' : 'No data available'}
                 </p>
-                <p className="text-stone-600 text-xs mt-1">
+                <p className="text-stone-400 text-xs mt-1">
                   {hasData
                     ? 'Run analysis to calculate margins'
                     : 'Upload numeric data first'}
@@ -648,11 +648,11 @@ export default function SystemDetail() {
               </div>
             ) : (
               analysis.engineering_margins.map((margin, idx) => (
-                <div key={idx} className="p-3.5 bg-stone-800/40 rounded-lg">
+                <div key={idx} className="p-3.5 bg-stone-700/40 rounded-lg">
                   <div className="flex items-center justify-between mb-1">
                     <div>
                       <h3 className="text-sm text-white">{margin.component}</h3>
-                      <p className="text-xs text-stone-500">{margin.parameter}</p>
+                      <p className="text-xs text-stone-400">{margin.parameter}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {getTrendIcon(margin.trend)}
@@ -665,10 +665,10 @@ export default function SystemDetail() {
                   </div>
                   <div className="mt-2.5">
                     <div className="flex justify-between text-[11px] mb-1.5">
-                      <span className="text-stone-500 tabular-nums">{margin.current_value.toFixed(2)}</span>
-                      <span className="text-stone-600 tabular-nums">Limit: {margin.design_limit.toFixed(2)}</span>
+                      <span className="text-stone-400 tabular-nums">{margin.current_value.toFixed(2)}</span>
+                      <span className="text-stone-400 tabular-nums">Limit: {margin.design_limit.toFixed(2)}</span>
                     </div>
-                    <div className="h-1.5 bg-stone-700/50 rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-stone-600/50 rounded-full overflow-hidden">
                       <div
                         className={clsx(
                           'h-full rounded-full',
@@ -678,7 +678,7 @@ export default function SystemDetail() {
                         style={{ width: getProgressWidth(margin.margin_percentage) }}
                       />
                     </div>
-                    <p className="text-[11px] text-stone-500 mt-1 tabular-nums">
+                    <p className="text-[11px] text-stone-400 mt-1 tabular-nums">
                       {margin.margin_percentage.toFixed(1)}% remaining
                     </p>
                   </div>
@@ -690,37 +690,37 @@ export default function SystemDetail() {
 
         {/* Blind Spots */}
         <div className="col-span-2 glass-card">
-          <div className="px-6 py-4 border-b border-stone-800">
+          <div className="px-6 py-4 border-b border-stone-600/40">
             <p className="text-sm font-medium text-white">Blind Spots & Recommendations</p>
           </div>
           <div className="p-4">
             {!analysis || analysis.blind_spots.length === 0 ? (
               <div className="text-center py-10">
                 <p className="text-stone-400 text-sm">No blind spots identified</p>
-                <p className="text-stone-600 text-xs mt-1">
+                <p className="text-stone-400 text-xs mt-1">
                   Run analysis with data to identify gaps
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {analysis.blind_spots.map((spot, idx) => (
-                  <div key={idx} className="p-4 bg-stone-800/40 rounded-lg">
+                  <div key={idx} className="p-4 bg-stone-700/40 rounded-lg">
                     <h3 className="text-sm font-medium text-white mb-1.5">{spot.title}</h3>
                     <p className="text-xs text-stone-400 leading-relaxed mb-3">{spot.description}</p>
                     {spot.recommended_sensor && (
-                      <div className="p-2.5 bg-stone-900/50 rounded-lg text-xs">
-                        <p className="text-stone-500 mb-1.5">Recommended Sensor</p>
+                      <div className="p-2.5 bg-stone-700/50 rounded-lg text-xs">
+                        <p className="text-stone-400 mb-1.5">Recommended Sensor</p>
                         <div className="grid grid-cols-2 gap-1 text-[11px]">
-                          <span className="text-stone-600">Type:</span>
+                          <span className="text-stone-400">Type:</span>
                           <span className="text-stone-300">{spot.recommended_sensor.type}</span>
-                          <span className="text-stone-600">Spec:</span>
+                          <span className="text-stone-400">Spec:</span>
                           <span className="text-stone-300">{spot.recommended_sensor.specification}</span>
-                          <span className="text-stone-600">Cost:</span>
+                          <span className="text-stone-400">Cost:</span>
                           <span className="text-stone-300">${spot.recommended_sensor.estimated_cost}</span>
                         </div>
                       </div>
                     )}
-                    <p className="text-[11px] text-stone-500 mt-2">
+                    <p className="text-[11px] text-stone-400 mt-2">
                       Coverage gain: <span className="text-emerald-400 tabular-nums">+{spot.diagnostic_coverage_improvement}%</span>
                     </p>
                   </div>
@@ -733,13 +733,13 @@ export default function SystemDetail() {
         {/* Field Statistics */}
         {hasData && statistics && statistics.fields.length > 0 && (
           <div className="col-span-2 glass-card">
-            <div className="px-6 py-4 border-b border-stone-800">
+            <div className="px-6 py-4 border-b border-stone-600/40">
               <p className="text-sm font-medium text-white">Field Statistics</p>
             </div>
             <div className="p-4 overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-left text-stone-600 border-b border-stone-800">
+                  <tr className="text-left text-stone-400 border-b border-stone-600/40">
                     <th className="pb-2.5 pr-4 font-medium">Field</th>
                     <th className="pb-2.5 pr-4 font-medium">Type</th>
                     <th className="pb-2.5 pr-4 font-medium">Unique</th>
@@ -751,7 +751,7 @@ export default function SystemDetail() {
                 </thead>
                 <tbody>
                   {statistics.fields.map((field, idx) => (
-                    <tr key={idx} className="border-b border-stone-800/50 text-stone-400">
+                    <tr key={idx} className="border-b border-stone-600/40/50 text-stone-400">
                       <td className="py-2.5 pr-4 font-mono text-stone-300">{field.name}</td>
                       <td className="py-2.5 pr-4">{field.type}</td>
                       <td className="py-2.5 pr-4 tabular-nums">{field.unique_count}</td>

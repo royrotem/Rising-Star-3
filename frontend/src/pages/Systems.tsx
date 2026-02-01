@@ -62,7 +62,7 @@ export default function Systems() {
       <div className="flex items-center justify-between mb-10">
         <div>
           <h1 className="text-xl font-semibold text-white">Systems</h1>
-          <p className="text-stone-500 text-sm mt-1">
+          <p className="text-stone-400 text-sm mt-1">
             {systems.length} system{systems.length !== 1 ? 's' : ''} monitored
           </p>
         </div>
@@ -104,7 +104,7 @@ export default function Systems() {
                 <h3 className="text-sm font-medium text-stone-200 group-hover:text-white transition-colors truncate">
                   {system.name}
                 </h3>
-                <p className="text-xs text-stone-600 capitalize mt-0.5">
+                <p className="text-xs text-stone-500 capitalize mt-0.5">
                   {system.system_type.replace('_', ' ')}
                   {system.anomaly_count ? ` · ${system.anomaly_count} anomalies` : ''}
                 </p>
@@ -122,7 +122,7 @@ export default function Systems() {
               <button
                 onClick={(e) => handleDelete(e, system.id)}
                 disabled={deleting === system.id}
-                className="p-1.5 text-stone-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded"
+                className="p-1.5 text-stone-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded"
               >
                 {deleting === system.id ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -131,7 +131,7 @@ export default function Systems() {
                 )}
               </button>
 
-              <ChevronRight className="w-4 h-4 text-stone-700 group-hover:text-stone-500 transition-colors" />
+              <ChevronRight className="w-4 h-4 text-stone-500 group-hover:text-stone-300 transition-colors" />
             </Link>
           ))}
         </div>

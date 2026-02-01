@@ -158,10 +158,10 @@ export default function Conversation() {
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <div className="flex items-center gap-4 p-4 border-b border-stone-700 bg-stone-800/80 backdrop-blur-sm">
+      <div className="flex items-center gap-4 p-4 border-b border-stone-600 bg-stone-700/80 backdrop-blur-sm">
         <Link
           to={'/systems/' + systemId}
-          className="p-2 hover:bg-stone-700 rounded-lg transition-colors"
+          className="p-2 hover:bg-stone-600 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-stone-400" />
         </Link>
@@ -184,7 +184,7 @@ export default function Conversation() {
           <button
             onClick={handleClearHistory}
             disabled={clearing}
-            className="p-2 hover:bg-stone-700 rounded-lg transition-colors text-stone-400 hover:text-red-400"
+            className="p-2 hover:bg-stone-600 rounded-lg transition-colors text-stone-400 hover:text-red-400"
             title="Clear conversation"
           >
             {clearing ? (
@@ -220,7 +220,7 @@ export default function Conversation() {
               'rounded-xl p-4 max-w-2xl',
               message.role === 'user'
                 ? 'bg-primary-500 text-white'
-                : 'bg-stone-800 border border-stone-700'
+                : 'bg-stone-700 border border-stone-600'
             )}>
               <div className={clsx(
                 'prose prose-sm max-w-none',
@@ -257,7 +257,7 @@ export default function Conversation() {
 
               {/* AI-powered badge for assistant messages */}
               {message.role === 'assistant' && message.aiPowered && message.id !== 'welcome' && (
-                <div className="mt-2 pt-2 border-t border-stone-700/50">
+                <div className="mt-2 pt-2 border-t border-stone-600/50">
                   <span className="inline-flex items-center gap-1 text-xs text-emerald-400/70">
                     <Sparkles className="w-3 h-3" />
                     AI-powered response
@@ -273,7 +273,7 @@ export default function Conversation() {
             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-stone-700">
               <Bot className="w-5 h-5 text-primary-400" />
             </div>
-            <div className="bg-stone-800 border border-stone-700 rounded-xl p-4">
+            <div className="bg-stone-700 border border-stone-600 rounded-xl p-4">
               <div className="flex items-center gap-2">
                 <Loader2 className="w-5 h-5 text-primary-400 animate-spin" />
                 <span className="text-sm text-stone-400">Analyzing your data...</span>
@@ -297,7 +297,7 @@ export default function Conversation() {
               <button
                 key={i}
                 onClick={() => handleSuggestedQuery(query)}
-                className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-lg text-sm text-stone-300 transition-colors"
+                className="px-3 py-1.5 bg-stone-700 hover:bg-stone-600 border border-stone-600 rounded-lg text-sm text-stone-300 transition-colors"
               >
                 {query}
               </button>
@@ -307,7 +307,7 @@ export default function Conversation() {
       )}
 
       {/* Input */}
-      <div className="p-4 border-t border-stone-700 bg-stone-800/80 backdrop-blur-sm">
+      <div className="p-4 border-t border-stone-600 bg-stone-700/80 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto flex gap-3">
           <input
             type="text"
@@ -315,7 +315,7 @@ export default function Conversation() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask a question about your system..."
-            className="flex-1 px-4 py-3 bg-stone-900 border border-stone-700 rounded-xl text-white placeholder-stone-500 focus:outline-none focus:border-primary-500 transition-colors"
+            className="flex-1 px-4 py-3 bg-stone-700 border border-stone-600 rounded-xl text-white placeholder-stone-400 focus:outline-none focus:border-primary-500 transition-colors"
           />
           <button
             onClick={handleSend}

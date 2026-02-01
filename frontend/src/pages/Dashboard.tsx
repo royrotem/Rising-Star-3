@@ -108,7 +108,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between mb-10">
         <div>
           <h1 className="text-xl font-semibold text-white">Dashboard</h1>
-          <p className="text-stone-500 mt-1 text-sm">
+          <p className="text-stone-400 mt-1 text-sm">
             Fleet overview and critical issues
           </p>
         </div>
@@ -129,7 +129,7 @@ export default function Dashboard() {
         <div className="stat-card">
           <p className="section-header mb-3">Active Systems</p>
           {loading ? (
-            <Loader2 className="w-5 h-5 text-stone-600 animate-spin" />
+            <Loader2 className="w-5 h-5 text-stone-500 animate-spin" />
           ) : (
             <p className="text-2xl font-semibold text-white tabular-nums">{systems.length}</p>
           )}
@@ -138,7 +138,7 @@ export default function Dashboard() {
         <div className="stat-card">
           <p className="section-header mb-3">Active Anomalies</p>
           {loading ? (
-            <Loader2 className="w-5 h-5 text-stone-600 animate-spin" />
+            <Loader2 className="w-5 h-5 text-stone-500 animate-spin" />
           ) : (
             <p className={clsx(
               'text-2xl font-semibold tabular-nums',
@@ -150,7 +150,7 @@ export default function Dashboard() {
         <div className="stat-card">
           <p className="section-header mb-3">Avg Health</p>
           {loading ? (
-            <Loader2 className="w-5 h-5 text-stone-600 animate-spin" />
+            <Loader2 className="w-5 h-5 text-stone-500 animate-spin" />
           ) : (
             <p className="text-2xl font-semibold text-white tabular-nums">{avgHealthScore}%</p>
           )}
@@ -168,9 +168,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-3 gap-6">
         {/* 80/20 Impact Radar */}
         <div className="col-span-2 glass-card">
-          <div className="px-6 py-4 border-b border-stone-800">
+          <div className="px-6 py-4 border-b border-stone-600/40">
             <h2 className="text-sm font-medium text-white">Impact Radar</h2>
-            <p className="text-xs text-stone-600 mt-0.5">
+            <p className="text-xs text-stone-400 mt-0.5">
               Top issues by impact score
             </p>
           </div>
@@ -180,15 +180,15 @@ export default function Dashboard() {
                 <Link
                   key={issue.rank}
                   to={`/systems/1`}
-                  className="flex items-center gap-4 p-3.5 rounded-lg border border-transparent hover:border-stone-800 hover:bg-stone-800/40 transition-all duration-150 group"
+                  className="flex items-center gap-4 p-3.5 rounded-lg border border-transparent hover:border-stone-600/50 hover:bg-stone-600/30 transition-all duration-150 group"
                   style={{ animationDelay: `${idx * 80}ms` }}
                 >
-                  <span className="text-xs font-mono text-stone-600 w-5 text-center">
+                  <span className="text-xs font-mono text-stone-500 w-5 text-center">
                     {issue.rank}
                   </span>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm text-stone-200 group-hover:text-white transition-colors truncate">{issue.title}</h3>
-                    <p className="text-xs text-stone-600 mt-0.5">
+                    <p className="text-xs text-stone-400 mt-0.5">
                       {issue.affected_percentage}% of fleet affected
                     </p>
                   </div>
@@ -199,7 +199,7 @@ export default function Dashboard() {
                     )}>
                       {issue.impact_score}
                     </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-stone-700 group-hover:text-stone-500 transition-colors" />
+                    <ChevronRight className="w-3.5 h-3.5 text-stone-500 group-hover:text-stone-300 transition-colors" />
                   </div>
                 </Link>
               ))}
@@ -209,11 +209,11 @@ export default function Dashboard() {
 
         {/* Systems List */}
         <div className="glass-card">
-          <div className="px-5 py-4 border-b border-stone-800 flex items-center justify-between">
+          <div className="px-5 py-4 border-b border-stone-600/40 flex items-center justify-between">
             <h2 className="text-sm font-medium text-white">Systems</h2>
             <Link
               to="/systems"
-              className="text-xs text-stone-500 hover:text-stone-300 flex items-center gap-1 transition-colors"
+              className="text-xs text-stone-400 hover:text-stone-200 flex items-center gap-1 transition-colors"
             >
               View all
               <ArrowRight className="w-3 h-3" />
@@ -222,11 +222,11 @@ export default function Dashboard() {
           <div className="p-2">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-5 h-5 text-stone-600 animate-spin" />
+                <Loader2 className="w-5 h-5 text-stone-500 animate-spin" />
               </div>
             ) : systems.length === 0 ? (
               <div className="text-center py-10">
-                <p className="text-stone-500 text-sm">No systems yet</p>
+                <p className="text-stone-400 text-sm">No systems yet</p>
                 <Link
                   to="/systems/new"
                   className="text-primary-400 text-xs hover:text-primary-300 mt-1.5 inline-block"
@@ -240,7 +240,7 @@ export default function Dashboard() {
                   <Link
                     key={system.id}
                     to={`/systems/${system.id}`}
-                    className="flex items-center justify-between p-2.5 rounded-lg hover:bg-stone-800/50 transition-colors duration-150 group"
+                    className="flex items-center justify-between p-2.5 rounded-lg hover:bg-stone-600/30 transition-colors duration-150 group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={clsx(
@@ -251,13 +251,13 @@ export default function Dashboard() {
                         <p className="text-sm text-stone-300 group-hover:text-white transition-colors truncate">
                           {system.name}
                         </p>
-                        <p className="text-[11px] text-stone-600 capitalize">{system.system_type.replace('_', ' ')}</p>
+                        <p className="text-[11px] text-stone-500 capitalize">{system.system_type.replace('_', ' ')}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {schedules[system.id] && (
                         <span title="Watchdog active">
-                          <Timer className="w-3 h-3 text-stone-500" />
+                          <Timer className="w-3 h-3 text-stone-400" />
                         </span>
                       )}
                       <span className={clsx(

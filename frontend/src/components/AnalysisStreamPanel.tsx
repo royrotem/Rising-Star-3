@@ -28,7 +28,7 @@ export function AnalysisStreamPanel({ stream }: Props) {
   const { progress, message, layers, agents, active, error } = stream;
 
   return (
-    <div className="bg-stone-800 rounded-xl border border-stone-700 p-6 mb-6 animate-in fade-in">
+    <div className="bg-stone-700 rounded-xl border border-stone-600 p-6 mb-6 animate-in fade-in">
       {/* Progress bar */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">

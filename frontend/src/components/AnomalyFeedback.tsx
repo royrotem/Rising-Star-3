@@ -104,7 +104,7 @@ export function FeedbackButtons({
   return (
     <div className="mt-3 pt-3 border-t border-stone-600/50">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-stone-500 mr-1">Feedback:</span>
+        <span className="text-xs text-stone-400 mr-1">Feedback:</span>
         {buttons.map((btn) => (
           <button
             key={btn.type}
@@ -132,13 +132,13 @@ export function FeedbackButtons({
             e.stopPropagation();
             setShowComment(!showComment);
           }}
-          className="flex items-center gap-1 px-2 py-1 rounded-full text-xs text-stone-500 hover:text-stone-300 transition-colors"
+          className="flex items-center gap-1 px-2 py-1 rounded-full text-xs text-stone-400 hover:text-stone-300 transition-colors"
         >
           <MessageSquare className="w-3.5 h-3.5" />
         </button>
 
         {existingFeedback.length > 0 && (
-          <span className="text-xs text-stone-600 ml-auto">
+          <span className="text-xs text-stone-400 ml-auto">
             {existingFeedback.length} review{existingFeedback.length !== 1 ? 's' : ''}
           </span>
         )}
@@ -161,7 +161,7 @@ export function FeedbackButtons({
           />
           <button
             onClick={() => setShowComment(false)}
-            className="p-1.5 text-stone-500 hover:text-stone-300"
+            className="p-1.5 text-stone-400 hover:text-stone-300"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -192,7 +192,7 @@ export function FeedbackSummaryBanner({ systemId }: FeedbackSummaryBannerProps) 
   const { by_type, false_positive_rate, confidence_score, total_feedback } = summary;
 
   return (
-    <div className="bg-stone-800 rounded-xl border border-stone-700 p-4 mb-6">
+    <div className="bg-stone-700 rounded-xl border border-stone-600 p-4 mb-6">
       <div
         className="flex items-center justify-between cursor-pointer"
         onClick={() => setExpanded(!expanded)}
@@ -235,7 +235,7 @@ export function FeedbackSummaryBanner({ systemId }: FeedbackSummaryBannerProps) 
       </div>
 
       {expanded && (
-        <div className="mt-4 pt-4 border-t border-stone-700 space-y-3">
+        <div className="mt-4 pt-4 border-t border-stone-600 space-y-3">
           {/* False positive rate bar */}
           <div>
             <div className="flex justify-between text-xs mb-1">
@@ -271,7 +271,7 @@ export function FeedbackSummaryBanner({ systemId }: FeedbackSummaryBannerProps) 
                       {pattern.anomaly_type.replace(/_/g, ' ')}
                     </span>
                     <div className="flex items-center gap-2">
-                      <span className="text-stone-500">{pattern.total} reviews</span>
+                      <span className="text-stone-400">{pattern.total} reviews</span>
                       <span className={clsx(
                         'font-medium',
                         pattern.false_positive_rate <= 0.2 ? 'text-green-400' :

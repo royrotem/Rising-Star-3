@@ -72,23 +72,23 @@ export default function OnboardingGuide({ systemCount, hasAnalyzed }: Onboarding
   return (
     <div className="mb-10 glass-card overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 flex items-center justify-between border-b border-stone-800">
+      <div className="px-6 py-4 flex items-center justify-between border-b border-stone-600/40">
         <div>
           <h2 className="text-sm font-medium text-white">Getting Started</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
+          <p className="text-xs text-stone-400 mt-0.5">
             {completedCount}/{steps.length} steps completed
           </p>
         </div>
         <button
           onClick={handleDismiss}
-          className="p-1.5 hover:bg-stone-800 rounded-lg transition-colors text-stone-600 hover:text-stone-400"
+          className="p-1.5 hover:bg-stone-700 rounded-lg transition-colors text-stone-400 hover:text-stone-300"
         >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
 
       {/* Steps */}
-      <div className="grid grid-cols-3 divide-x divide-stone-800">
+      <div className="grid grid-cols-3 divide-x divide-stone-600/40">
         {steps.map((step, idx) => {
           const done = step.checkComplete();
           return (
@@ -97,7 +97,7 @@ export default function OnboardingGuide({ systemCount, hasAnalyzed }: Onboarding
                 {done ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 ) : (
-                  <span className="text-xs text-stone-600 font-medium">{idx + 1}</span>
+                  <span className="text-xs text-stone-400 font-medium">{idx + 1}</span>
                 )}
                 <h3 className={clsx(
                   'text-sm font-medium',
@@ -106,7 +106,7 @@ export default function OnboardingGuide({ systemCount, hasAnalyzed }: Onboarding
                   {step.title}
                 </h3>
               </div>
-              <p className="text-xs text-stone-500 leading-relaxed mb-3">
+              <p className="text-xs text-stone-400 leading-relaxed mb-3">
                 {step.description}
               </p>
               {!done && step.action && (

@@ -15,8 +15,8 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #1c1917;
-  color: #e7e5e4;
+  background-color: #292524;
+  color: #f5f5f4;
 }
 
 /* Custom scrollbar */
@@ -30,12 +30,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #44403c;
+  background: #57534e;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #57534e;
+  background: #78716c;
 }
 
 /* Animations */
@@ -51,8 +51,8 @@ body {
 /* Card system */
 @layer components {
   .glass-card {
-    @apply border border-stone-700/60 rounded-xl;
-    background-color: #292524;
+    @apply border border-stone-600/50 rounded-xl;
+    background-color: #44403c;
   }
 
   .glass-card-hover {
@@ -60,7 +60,7 @@ body {
   }
 
   .glass-card-hover:hover {
-    @apply border-stone-600;
+    @apply border-stone-500;
   }
 
   /* Gradient text */
@@ -70,49 +70,49 @@ body {
 
   /* Stat card — minimal */
   .stat-card {
-    @apply relative rounded-xl p-5 border border-stone-700/60 transition-all duration-200;
-    background-color: #292524;
+    @apply relative rounded-xl p-5 border border-stone-600/50 transition-all duration-200;
+    background-color: #44403c;
   }
 
   .stat-card:hover {
-    @apply border-stone-600;
+    @apply border-stone-500;
   }
 
   /* Section header style */
   .section-header {
-    @apply text-xs font-medium text-stone-400 uppercase tracking-wider;
+    @apply text-xs font-medium text-stone-300 uppercase tracking-wider;
   }
 }
 
 /* Severity colors */
 .severity-critical {
   color: #f87171;
-  background-color: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.25);
+  background-color: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 .severity-high {
   color: #fb923c;
-  background-color: rgba(249, 115, 22, 0.1);
-  border-color: rgba(249, 115, 22, 0.25);
+  background-color: rgba(249, 115, 22, 0.12);
+  border-color: rgba(249, 115, 22, 0.3);
 }
 
 .severity-medium {
   color: #facc15;
-  background-color: rgba(234, 179, 8, 0.1);
-  border-color: rgba(234, 179, 8, 0.25);
+  background-color: rgba(234, 179, 8, 0.12);
+  border-color: rgba(234, 179, 8, 0.3);
 }
 
 .severity-low {
   color: #34d399;
-  background-color: rgba(16, 185, 129, 0.1);
-  border-color: rgba(16, 185, 129, 0.25);
+  background-color: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
 }
 
 .severity-info {
   color: #60a5fa;
-  background-color: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.25);
+  background-color: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 /* Smooth page entrance */

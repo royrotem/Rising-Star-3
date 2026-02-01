@@ -132,7 +132,7 @@ export default function DataIngestion() {
       <div className="flex items-center gap-4 mb-6">
         <Link
           to={'/systems/' + systemId}
-          className="p-2 hover:bg-stone-800 rounded-lg transition-colors"
+          className="p-2 hover:bg-stone-700 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-stone-400" />
         </Link>
@@ -144,7 +144,7 @@ export default function DataIngestion() {
 
       <div className="grid grid-cols-2 gap-6">
         {/* Upload Area */}
-        <div className="bg-stone-800 rounded-xl border border-stone-700 p-6">
+        <div className="bg-stone-700 rounded-xl border border-stone-600 p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Upload Data File</h2>
           
           {!uploadComplete ? (
@@ -202,7 +202,7 @@ export default function DataIngestion() {
                 )}
               </button>
 
-              <div className="mt-6 p-4 bg-stone-900/50 rounded-lg">
+              <div className="mt-6 p-4 bg-stone-700/50 rounded-lg">
                 <h3 className="text-sm font-medium text-primary-400 mb-2">Zero-Knowledge Ingestion</h3>
                 <p className="text-sm text-stone-400">
                   Upload your raw data files. Our AI agents will autonomously analyze the 
@@ -221,7 +221,7 @@ export default function DataIngestion() {
               
               <div className="text-left space-y-3">
                 {discoveredFields.map((field) => (
-                  <div key={field.name} className="p-3 bg-stone-900/50 rounded-lg flex items-center gap-3">
+                  <div key={field.name} className="p-3 bg-stone-700/50 rounded-lg flex items-center gap-3">
                     <FileText className="w-5 h-5 text-stone-400" />
                     <div className="flex-1">
                       <p className="text-white font-medium">{field.name}</p>
@@ -246,7 +246,7 @@ export default function DataIngestion() {
         </div>
 
         {/* Confirmation Panel */}
-        <div className="bg-stone-800 rounded-xl border border-stone-700 p-6">
+        <div className="bg-stone-700 rounded-xl border border-stone-600 p-6">
           <div className="flex items-center gap-2 mb-4">
             <HelpCircle className="w-5 h-5 text-primary-500" />
             <h2 className="text-lg font-semibold text-white">Human-in-the-Loop Confirmation</h2>
@@ -272,12 +272,12 @@ export default function DataIngestion() {
                       ? 'border-green-500/50 bg-green-500/5'
                       : confirmations[req.field_name] === false
                       ? 'border-red-500/50 bg-red-500/5'
-                      : 'border-stone-600 bg-stone-900/50'
+                      : 'border-stone-600 bg-stone-700/50'
                   )}
                 >
                   <p className="text-white mb-3">{req.question}</p>
                   
-                  <div className="mb-3 p-2 bg-stone-800 rounded text-sm">
+                  <div className="mb-3 p-2 bg-stone-700 rounded text-sm">
                     <span className="text-stone-400">Sample values: </span>
                     <span className="text-white">
                       {req.sample_values.slice(0, 3).join(', ')}
@@ -291,7 +291,7 @@ export default function DataIngestion() {
                         'flex-1 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2',
                         confirmations[req.field_name] === true
                           ? 'bg-green-500 text-white'
-                          : 'bg-stone-700 text-white hover:bg-stone-600'
+                          : 'bg-stone-700 text-white hover:bg-stone-500'
                       )}
                     >
                       <CheckCircle className="w-4 h-4" />
@@ -303,7 +303,7 @@ export default function DataIngestion() {
                         'flex-1 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2',
                         confirmations[req.field_name] === false
                           ? 'bg-red-500 text-white'
-                          : 'bg-stone-700 text-white hover:bg-stone-600'
+                          : 'bg-stone-700 text-white hover:bg-stone-500'
                       )}
                     >
                       <XCircle className="w-4 h-4" />

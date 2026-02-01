@@ -138,20 +138,20 @@ export default function Settings() {
     <div className="p-8 max-w-3xl page-enter">
       <div className="mb-10">
         <h1 className="text-xl font-semibold text-white">Settings</h1>
-        <p className="text-stone-500 text-sm mt-1">
+        <p className="text-stone-300 text-sm mt-1">
           Platform configuration and watchdog management
         </p>
       </div>
 
       {/* AI Configuration */}
       <div className="glass-card mb-8">
-        <div className="px-6 py-4 border-b border-stone-700/60">
+        <div className="px-6 py-4 border-b border-stone-600/50">
           <h2 className="text-sm font-medium text-white">AI Configuration</h2>
         </div>
         <div className="p-6 space-y-5">
           {/* API Key */}
           <div>
-            <label className="block text-xs font-medium text-stone-400 mb-2">
+            <label className="block text-xs font-medium text-stone-300 mb-2">
               Anthropic API Key
             </label>
             <div className="relative">
@@ -160,11 +160,11 @@ export default function Settings() {
                 value={keyEdited ? apiKey : ''}
                 onChange={(e) => handleKeyChange(e.target.value)}
                 placeholder={hasConfiguredKey ? maskedKey : 'sk-ant-api03-...'}
-                className="w-full px-4 py-2.5 bg-stone-800 border border-stone-700/60 rounded-lg text-sm text-white placeholder-stone-500 focus:outline-none focus:border-stone-500 transition-colors pr-16"
+                className="w-full px-4 py-2.5 bg-stone-600 border border-stone-600/50 rounded-lg text-sm text-white placeholder-stone-400 focus:outline-none focus:border-stone-400 transition-colors pr-16"
               />
               <button
                 onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 text-xs transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-300 hover:text-stone-300 text-xs transition-colors"
               >
                 {showKey ? 'Hide' : 'Show'}
               </button>
@@ -178,7 +178,7 @@ export default function Settings() {
               </div>
             )}
             {keyEdited && apiKey.trim() && (
-              <p className="text-xs text-stone-500 mt-2">
+              <p className="text-xs text-stone-300 mt-2">
                 New key will be saved when you click Save
               </p>
             )}
@@ -188,7 +188,7 @@ export default function Settings() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-white">AI Agents</p>
-              <p className="text-xs text-stone-500 mt-0.5">
+              <p className="text-xs text-stone-300 mt-0.5">
                 Use LLM-powered analysis (requires API key)
               </p>
             </div>
@@ -196,7 +196,7 @@ export default function Settings() {
               onClick={() => setEnableAiAgents(!enableAiAgents)}
               className={clsx(
                 'w-10 h-5.5 rounded-full transition-colors duration-200 relative',
-                enableAiAgents ? 'bg-primary-500' : 'bg-stone-600'
+                enableAiAgents ? 'bg-primary-500' : 'bg-stone-500'
               )}
             >
               <div className={clsx(
@@ -232,11 +232,11 @@ export default function Settings() {
       {/* Watchdog Management */}
       {systems.length > 0 && (
         <div className="glass-card">
-          <div className="px-6 py-4 border-b border-stone-700/60 flex items-center gap-2">
-            <Timer className="w-4 h-4 text-stone-500" />
+          <div className="px-6 py-4 border-b border-stone-600/50 flex items-center gap-2">
+            <Timer className="w-4 h-4 text-stone-300" />
             <h2 className="text-sm font-medium text-white">Watchdog Schedules</h2>
           </div>
-          <div className="divide-y divide-stone-700/40">
+          <div className="divide-y divide-stone-600/40">
             {systems.map((sys) => {
               const sched = schedules[sys.id];
               const isEnabled = sched?.enabled ?? false;
@@ -246,9 +246,9 @@ export default function Settings() {
                 <div key={sys.id} className="px-6 py-4 flex items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-white truncate">{sys.name}</p>
-                    <p className="text-xs text-stone-500 capitalize">{sys.system_type.replace('_', ' ')}</p>
+                    <p className="text-xs text-stone-300 capitalize">{sys.system_type.replace('_', ' ')}</p>
                     {sched && sched.run_count > 0 && (
-                      <p className="text-[11px] text-stone-500 mt-0.5 tabular-nums">
+                      <p className="text-[11px] text-stone-300 mt-0.5 tabular-nums">
                         {sched.run_count} runs
                       </p>
                     )}
@@ -261,7 +261,7 @@ export default function Settings() {
                         value={sched?.interval || '24h'}
                         onChange={(e) => changeWatchdogInterval(sys.id, e.target.value)}
                         disabled={isSaving}
-                        className="bg-stone-800 border border-stone-700/60 rounded-lg px-2.5 py-1.5 text-xs text-stone-300 focus:outline-none focus:border-stone-500 disabled:opacity-50"
+                        className="bg-stone-600 border border-stone-600/50 rounded-lg px-2.5 py-1.5 text-xs text-stone-300 focus:outline-none focus:border-stone-400 disabled:opacity-50"
                       >
                         <option value="1h">1h</option>
                         <option value="6h">6h</option>
@@ -279,7 +279,7 @@ export default function Settings() {
                         'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
                         isEnabled
                           ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15'
-                          : 'bg-stone-700 text-stone-400 hover:bg-stone-600 hover:text-stone-300'
+                          : 'bg-stone-600 text-stone-300 hover:bg-stone-500 hover:text-stone-300'
                       )}
                     >
                       {isSaving ? (

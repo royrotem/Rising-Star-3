@@ -53,6 +53,7 @@ interface DiscoveredField {
   confidence: number;
   sample_values?: unknown[];
   source_file?: string;
+  field_category?: 'content' | 'temporal' | 'identifier' | 'auxiliary';
 }
 
 interface ConfirmationRequest {
@@ -84,7 +85,7 @@ const systemTypes = [
 // Steps - new order
 const steps = [
   { id: 1, name: 'Upload Data', description: 'Add files to the data pool' },
-  { id: 2, name: 'System Settings', description: 'AI-recommended configuration' },
+  { id: 2, name: 'System Settings', description: 'Smart-detected configuration' },
   { id: 3, name: 'Schema Discovery', description: 'Review discovered data structure' },
   { id: 4, name: 'Confirm Fields', description: 'Verify the discovered schema' },
   { id: 5, name: 'Complete', description: 'System is ready for analysis' },
@@ -300,9 +301,9 @@ export default function NewSystemWizard() {
                 <div>
                   <h3 className="font-medium text-white">Data Pool</h3>
                   <p className="text-sm text-stone-400 mt-1">
-                    Upload all relevant data files. Our AI will automatically discover relationships
+                    Upload all relevant data files. Our system will automatically discover relationships
                     between files, understand the data structure, and infer the system type.
-                    You can upload telemetry data, logs, configuration files, or even documentation.
+                    You can upload telemetry data, logs, and description files that explain the fields.
                   </p>
                 </div>
               </div>
@@ -381,7 +382,7 @@ export default function NewSystemWizard() {
                 <div className="flex items-start gap-3">
                   <Lightbulb className="w-5 h-5 text-primary-400 mt-0.5" />
                   <div>
-                    <h3 className="font-medium text-primary-400">AI Analysis Complete</h3>
+                    <h3 className="font-medium text-primary-400">Smart Analysis Complete</h3>
                     <p className="text-sm text-stone-300 mt-1">
                       {aiRecommendation.reasoning}
                     </p>
@@ -397,7 +398,7 @@ export default function NewSystemWizard() {
               <label className="block text-sm font-medium text-stone-300 mb-2">
                 System Name *
                 {aiRecommendation && (
-                  <span className="ml-2 text-xs text-primary-400">(AI suggested)</span>
+                  <span className="ml-2 text-xs text-primary-400">(Smart Detection)</span>
                 )}
               </label>
               <input
@@ -413,7 +414,7 @@ export default function NewSystemWizard() {
               <label className="block text-sm font-medium text-stone-300 mb-3">
                 System Type *
                 {aiRecommendation && (
-                  <span className="ml-2 text-xs text-primary-400">(AI suggested)</span>
+                  <span className="ml-2 text-xs text-primary-400">(Smart Detection)</span>
                 )}
               </label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -445,7 +446,7 @@ export default function NewSystemWizard() {
               <label className="block text-sm font-medium text-stone-300 mb-2">
                 Description
                 {aiRecommendation && (
-                  <span className="ml-2 text-xs text-primary-400">(AI generated)</span>
+                  <span className="ml-2 text-xs text-primary-400">(Smart Detection)</span>
                 )}
               </label>
               <textarea
@@ -486,7 +487,74 @@ export default function NewSystemWizard() {
           </div>
         );
 
-      case 3:
+      case 3: {
+        const categoryInfo: Record<string, { label: string; color: string; bgColor: string; description: string }> = {
+          content: { label: 'Content', color: 'text-green-400', bgColor: 'bg-green-500/15 border-green-500/30', description: 'Core measurement/sensor data for analysis' },
+          temporal: { label: 'Temporal', color: 'text-blue-400', bgColor: 'bg-blue-500/15 border-blue-500/30', description: 'Time-related fields for trend tracking' },
+          identifier: { label: 'Identifier', color: 'text-yellow-400', bgColor: 'bg-yellow-500/15 border-yellow-500/30', description: 'IDs and labels for grouping' },
+          auxiliary: { label: 'Auxiliary', color: 'text-stone-400', bgColor: 'bg-stone-600/30 border-stone-500/30', description: 'Low-value or redundant fields' },
+        };
+
+        const contentFields = discoveredFields.filter((f) => (f.field_category || 'content') === 'content');
+        const temporalFields = discoveredFields.filter((f) => f.field_category === 'temporal');
+        const identifierFields = discoveredFields.filter((f) => f.field_category === 'identifier');
+        const auxiliaryFields = discoveredFields.filter((f) => f.field_category === 'auxiliary');
+
+        const renderFieldGroup = (fields: DiscoveredField[], category: string) => {
+          if (fields.length === 0) return null;
+          const info = categoryInfo[category];
+          return (
+            <div key={category}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className={clsx('text-sm font-semibold', info.color)}>{info.label}</span>
+                <span className="text-xs text-stone-400">({fields.length} fields)</span>
+                <span className="text-xs text-stone-400">— {info.description}</span>
+              </div>
+              <div className="space-y-2">
+                {fields.map((field) => (
+                  <div
+                    key={field.name}
+                    className={clsx('rounded-lg p-4 border', info.bgColor)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <Database className="w-4 h-4 text-stone-400" />
+                        <div>
+                          <p className="font-medium text-white font-mono text-sm">{field.name}</p>
+                          <p className="text-sm text-stone-400">{field.inferred_meaning || 'Unknown'}</p>
+                          {field.source_file && (
+                            <p className="text-xs text-stone-400 mt-1">From: {field.source_file}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={clsx('text-sm font-medium', getConfidenceColor(field.confidence))}>
+                          {(field.confidence * 100).toFixed(0)}%
+                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="px-2 py-0.5 bg-stone-700 rounded text-xs text-stone-300">
+                            {field.inferred_type}
+                          </span>
+                          {field.physical_unit && (
+                            <span className="px-2 py-0.5 bg-primary-500/20 rounded text-xs text-primary-300">
+                              {field.physical_unit}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-stone-600/50">
+                      <p className="text-xs text-stone-400">
+                        Samples: <span className="font-mono text-stone-300">{(field.sample_values || []).slice(0, 3).join(', ')}</span>
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        };
+
         return (
           <div className="space-y-6">
             <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
@@ -502,53 +570,33 @@ export default function NewSystemWizard() {
               </div>
             </div>
 
-            <div>
-              <h3 className="text-lg font-semibold text-white mb-4">Discovered Fields</h3>
-              <div className="space-y-3">
-                {discoveredFields.map((field) => (
-                  <div
-                    key={field.name}
-                    className="bg-stone-700/50 rounded-lg p-4 border border-stone-600"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <Database className="w-5 h-5 text-stone-400" />
-                        <div>
-                          <p className="font-medium text-white font-mono">{field.name}</p>
-                          <p className="text-sm text-stone-400">{field.inferred_meaning || 'Unknown'}</p>
-                          {field.source_file && (
-                            <p className="text-xs text-stone-400 mt-1">From: {field.source_file}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className={clsx('text-sm font-medium', getConfidenceColor(field.confidence))}>
-                          {(field.confidence * 100).toFixed(0)}% confident
-                        </span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="px-2 py-0.5 bg-stone-700 rounded text-xs text-stone-300">
-                            {field.inferred_type}
-                          </span>
-                          {field.physical_unit && (
-                            <span className="px-2 py-0.5 bg-primary-500/20 rounded text-xs text-primary-300">
-                              {field.physical_unit}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-stone-600">
-                      <p className="text-xs text-stone-400 mb-1">Sample values:</p>
-                      <p className="text-sm text-stone-300 font-mono">
-                        {(field.sample_values || []).slice(0, 3).join(', ')}
-                      </p>
-                    </div>
+            {/* Category summary */}
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { cat: 'content', count: contentFields.length },
+                { cat: 'temporal', count: temporalFields.length },
+                { cat: 'identifier', count: identifierFields.length },
+                { cat: 'auxiliary', count: auxiliaryFields.length },
+              ].map(({ cat, count }) => {
+                const info = categoryInfo[cat];
+                return (
+                  <div key={cat} className="bg-stone-700/50 rounded-lg p-3 border border-stone-600 text-center">
+                    <p className={clsx('text-lg font-bold', info.color)}>{count}</p>
+                    <p className="text-xs text-stone-400">{info.label}</p>
                   </div>
-                ))}
-              </div>
+                );
+              })}
+            </div>
+
+            <div className="space-y-6">
+              {renderFieldGroup(contentFields, 'content')}
+              {renderFieldGroup(temporalFields, 'temporal')}
+              {renderFieldGroup(identifierFields, 'identifier')}
+              {renderFieldGroup(auxiliaryFields, 'auxiliary')}
             </div>
           </div>
         );
+      }
 
       case 4:
         return (
@@ -559,8 +607,8 @@ export default function NewSystemWizard() {
                 <div>
                   <h3 className="font-medium text-white">Human-in-the-Loop Confirmation</h3>
                   <p className="text-sm text-stone-400 mt-1">
-                    Please verify our AI's understanding of your data. This ensures accuracy and builds
-                    trust in the analysis.
+                    Please verify the system's understanding of your data. This ensures accuracy
+                    and builds trust in the analysis.
                   </p>
                 </div>
               </div>
@@ -645,7 +693,7 @@ export default function NewSystemWizard() {
               <div className="text-center py-8">
                 <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
                 <p className="text-stone-300 font-medium">No confirmations needed</p>
-                <p className="text-stone-400 text-sm">AI is confident about all discovered fields</p>
+                <p className="text-stone-400 text-sm">System is confident about all discovered fields</p>
               </div>
             )}
           </div>
@@ -660,7 +708,7 @@ export default function NewSystemWizard() {
             <h2 className="text-2xl font-bold text-white mb-2">System Ready!</h2>
             <p className="text-stone-400 mb-8 max-w-md mx-auto">
               <span className="text-white font-medium">{systemData.name}</span> has been created and
-              configured. The AI agents are now ready to analyze your data.
+              configured. The system is now ready to analyze your data.
             </p>
 
             <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto mb-8">
@@ -713,7 +761,7 @@ export default function NewSystemWizard() {
           Back to Systems
         </button>
         <h1 className="text-3xl font-bold text-white">Add New System</h1>
-        <p className="text-stone-400 mt-1">Upload your data and let AI configure your system</p>
+        <p className="text-stone-400 mt-1">Upload your data and let smart detection configure your system</p>
       </div>
 
       {/* Progress Steps */}

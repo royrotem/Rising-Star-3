@@ -1,9 +1,10 @@
 """
 System Recommendation Service
 
-Generates AI-powered recommendations for system configuration based on
-analyzed data, including system type detection, name suggestion, and
-metadata-driven insights.
+Generates smart recommendations for system configuration based on
+analyzed data, using rule-based heuristics: keyword matching for
+system type detection, pattern-based name suggestion, and
+metadata-driven insights.  No LLM/API calls are used.
 """
 
 import re
@@ -70,10 +71,11 @@ def generate_system_recommendation(
     metadata_list: Optional[List[Dict]] = None,
 ) -> Dict:
     """
-    Generate AI recommendations for system configuration based on analyzed data.
+    Generate smart recommendations for system configuration based on analyzed data.
 
-    Uses field names, metadata descriptions, and file structure to suggest
-    the best system type, name, and description.
+    Uses rule-based heuristics: field name keyword matching, metadata descriptions,
+    and file structure analysis to suggest the best system type, name, and description.
+    No LLM or API calls are made.
     """
     metadata_list = metadata_list or []
 

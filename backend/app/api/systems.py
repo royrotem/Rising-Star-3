@@ -116,8 +116,9 @@ async def analyze_files(files: List[UploadFile] = File(...)):
     """
     Analyze uploaded files to discover schema and suggest system configuration.
 
-    Processes all uploaded files, discovers relationships between them,
-    and provides AI recommendations for system name, type, and description.
+    Processes all uploaded files, classifies them as data vs description files,
+    uses description files to enrich field understanding, discovers relationships,
+    and provides smart recommendations for system name, type, and description.
     Records are stored temporarily and can be associated with a system
     using the returned ``analysis_id``.
     """
@@ -126,13 +127,8 @@ async def analyze_files(files: List[UploadFile] = File(...)):
 
     analysis_id = str(uuid.uuid4())
 
-    all_discovered_fields: List[Dict] = []
-    all_confirmation_requests: List[Dict] = []
-    all_metadata: List[Dict] = []
-    all_records: List[Dict] = []
-    total_records = 0
-    file_summaries: List[Dict] = []
-    file_records_map: Dict[str, List[Dict]] = {}
+    # ── First pass: parse all files ──────────────────────────────────
+    parsed_files: List[Dict] = []
 
     for file in files:
         try:
@@ -142,13 +138,118 @@ async def analyze_files(files: List[UploadFile] = File(...)):
                 system_id="temp_analysis",
                 source_name=file.filename,
             )
+            parsed_files.append({
+                "filename": file.filename,
+                "result": result,
+            })
+            file.file.seek(0)
+        except Exception as e:
+            import traceback
+            print(f"Error processing file {file.filename}: {e}")
+            traceback.print_exc()
+            parsed_files.append({
+                "filename": file.filename,
+                "result": None,
+                "error": str(e),
+            })
 
-            records = result.get("sample_records", [])
-            file_records_map[file.filename] = records
+    # ── Second pass: classify files as data vs description ───────────
+    # Collect all field names from successfully parsed files
+    all_parsed_field_names: List[str] = []
+    for pf in parsed_files:
+        result = pf.get("result")
+        if result:
+            for field in result.get("discovered_fields", []):
+                name = field.get("name", "")
+                if name not in ("line_number", "content"):
+                    all_parsed_field_names.append(name)
+
+    # Classify each file
+    from ..services.ingestion import DiscoveredField as _DF
+    for pf in parsed_files:
+        result = pf.get("result")
+        if not result:
+            pf["role"] = "error"
+            continue
+
+        records = result.get("sample_records", [])
+        fields_raw = result.get("discovered_fields", [])
+        fields_as_df = [
+            _DF(
+                name=f.get("name", ""),
+                inferred_type=f.get("inferred_type", "string"),
+                sample_values=f.get("sample_values"),
+            )
+            for f in fields_raw
+        ]
+
+        # Other files' fields = all fields minus this file's fields
+        this_file_fields = {f.get("name", "") for f in fields_raw}
+        other_fields = [f for f in all_parsed_field_names if f not in this_file_fields]
+
+        pf["role"] = ingestion_service.classify_file_role(
+            pf["filename"], records, fields_as_df, other_fields,
+        )
+
+    # ── Third pass: extract descriptions from description files ──────
+    description_field_map: Dict[str, str] = {}
+    description_context_texts: List[str] = []
+    data_field_names = []
+
+    for pf in parsed_files:
+        if pf["role"] == "data" and pf.get("result"):
+            for field in pf["result"].get("discovered_fields", []):
+                name = field.get("name", "")
+                if name not in ("line_number", "content"):
+                    data_field_names.append(name)
+
+    for pf in parsed_files:
+        if pf["role"] == "description" and pf.get("result"):
+            records = pf["result"].get("sample_records", [])
+            # Extract field descriptions matching data file fields
+            extracted = ingestion_service.extract_descriptions_from_file(
+                records, data_field_names,
+            )
+            description_field_map.update(extracted)
+            # Get full text as context
+            ctx = ingestion_service.get_description_file_context(records)
+            if ctx:
+                description_context_texts.append(ctx)
+
+    # ── Fourth pass: build output from data files only ───────────────
+    all_discovered_fields: List[Dict] = []
+    all_confirmation_requests: List[Dict] = []
+    all_metadata: List[Dict] = []
+    all_records: List[Dict] = []
+    total_records = 0
+    file_summaries: List[Dict] = []
+    file_records_map: Dict[str, List[Dict]] = {}
+
+    for pf in parsed_files:
+        result = pf.get("result")
+        if not result:
+            file_summaries.append({
+                "filename": pf["filename"],
+                "status": "error",
+                "error": pf.get("error", "Unknown error"),
+                "record_count": 0,
+                "fields": [],
+                "field_types": {},
+                "role": "error",
+            })
+            continue
+
+        records = result.get("sample_records", [])
+        role = pf["role"]
+
+        if role == "data":
+            file_records_map[pf["filename"]] = records
             all_records.extend(records)
 
             for field in result.get("discovered_fields", []):
-                field["source_file"] = file.filename
+                field["source_file"] = pf["filename"]
+                # Add field category
+                field["field_category"] = ingestion_service.classify_field_relevance(field)
                 all_discovered_fields.append(field)
 
             all_confirmation_requests.extend(result.get("confirmation_requests", []))
@@ -158,33 +259,18 @@ async def analyze_files(files: List[UploadFile] = File(...)):
             if metadata_info.get("dataset_description"):
                 all_metadata.append(metadata_info)
 
-            file_summaries.append({
-                "filename": file.filename,
-                "record_count": result.get("record_count", 0),
-                "fields": [f.get("name", "") for f in result.get("discovered_fields", [])],
-                "field_types": {
-                    f.get("name", ""): f.get("inferred_type", "")
-                    for f in result.get("discovered_fields", [])
-                },
-                "metadata": metadata_info,
-                "relationships": result.get("relationships", []),
-            })
-
-            file.file.seek(0)
-
-        except Exception as e:
-            import traceback
-            print(f"Error processing file {file.filename}: {e}")
-            traceback.print_exc()
-            file_summaries.append({
-                "filename": file.filename,
-                "status": "error",
-                "error": str(e),
-                "record_count": 0,
-                "fields": [],
-                "field_types": {},
-            })
-            continue
+        file_summaries.append({
+            "filename": pf["filename"],
+            "record_count": result.get("record_count", 0),
+            "fields": [f.get("name", "") for f in result.get("discovered_fields", [])],
+            "field_types": {
+                f.get("name", ""): f.get("inferred_type", "")
+                for f in result.get("discovered_fields", [])
+            },
+            "metadata": result.get("metadata_info", {}),
+            "relationships": result.get("relationships", []),
+            "role": role,
+        })
 
     data_store.store_temp_analysis(
         analysis_id=analysis_id,
@@ -194,13 +280,20 @@ async def analyze_files(files: List[UploadFile] = File(...)):
         file_records_map=file_records_map,
     )
 
-    # Second pass: enrich fields with combined context from all files
+    # ── Enrichment: combine all metadata + description file context ──
     combined_field_descriptions: Dict[str, str] = {}
     combined_context_texts: List[str] = []
 
+    # Add descriptions extracted from description files (highest priority)
+    combined_field_descriptions.update(description_field_map)
+    combined_context_texts.extend(description_context_texts)
+
+    # Add metadata extracted from within data files
     for meta in all_metadata:
         if meta.get("field_descriptions"):
-            combined_field_descriptions.update(meta["field_descriptions"])
+            for k, v in meta["field_descriptions"].items():
+                if k not in combined_field_descriptions:
+                    combined_field_descriptions[k] = v
         if meta.get("context_texts"):
             combined_context_texts.extend(meta["context_texts"])
         elif meta.get("dataset_description"):
@@ -217,6 +310,7 @@ async def analyze_files(files: List[UploadFile] = File(...)):
     )
 
     file_errors = [s for s in file_summaries if s.get("status") == "error"]
+    description_files = [s["filename"] for s in file_summaries if s.get("role") == "description"]
 
     return {
         "status": "success",
@@ -228,6 +322,11 @@ async def analyze_files(files: List[UploadFile] = File(...)):
         "recommendation": recommendation,
         "context_extracted": len(combined_context_texts) > 0,
         "fields_enriched": len(combined_field_descriptions),
+        "file_classification": {
+            "data_files": [s["filename"] for s in file_summaries if s.get("role") == "data"],
+            "description_files": description_files,
+            "error_files": [s["filename"] for s in file_summaries if s.get("role") == "error"],
+        },
         "file_errors": file_errors,
     }
 

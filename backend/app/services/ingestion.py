@@ -918,3 +918,211 @@ class IngestionService:
                 })
 
         return requests
+
+    # ============ File Classification ============
+
+    def classify_file_role(
+        self,
+        filename: str,
+        records: List[Dict],
+        discovered_fields: List[DiscoveredField],
+        other_files_fields: List[str],
+    ) -> str:
+        """
+        Classify a file's role: 'data' (measurement/telemetry records) or
+        'description' (documentation that explains fields in other files).
+
+        A file is classified as 'description' when:
+        - It has very few columns (typically line_number + content from text parser)
+        - Its content references field names found in other uploaded files
+        - It contains description-like patterns (colon-separated field:desc, bullets, etc.)
+        """
+        if not records:
+            return "data"
+
+        columns = list(records[0].keys()) if records else []
+
+        # Text files parsed as line_number + content are strong candidates
+        is_text_parsed = set(columns) == {"line_number", "content"}
+
+        if not is_text_parsed:
+            # Files with many numeric columns are data files
+            numeric_count = sum(1 for f in discovered_fields if f.inferred_type == "numeric")
+            if numeric_count >= 3 or len(columns) >= 5:
+                return "data"
+
+        # Check if content references field names from other files
+        if is_text_parsed and other_files_fields:
+            combined_text = " ".join(
+                str(r.get("content", "")) for r in records
+            ).lower()
+
+            # Count how many other-file field names appear in this file's text
+            field_mentions = sum(
+                1 for f in other_files_fields
+                if len(f) > 2 and f.lower() in combined_text
+            )
+
+            # If this file mentions multiple field names from other files, it's a description
+            if field_mentions >= 2:
+                return "description"
+
+            # Check for description patterns: "FieldName: description" or "FieldName - description"
+            desc_pattern_count = 0
+            for r in records:
+                line = str(r.get("content", ""))
+                if re.match(r'^[A-Za-z_][A-Za-z0-9_]*\s*[:–\-]\s+\S', line):
+                    desc_pattern_count += 1
+
+            if desc_pattern_count >= 3:
+                return "description"
+
+        # Small text files with few records that contain long text are likely descriptions
+        if is_text_parsed and len(records) < 50:
+            avg_content_len = sum(len(str(r.get("content", ""))) for r in records) / max(len(records), 1)
+            if avg_content_len > 30:
+                # Content is descriptive text, not short data entries
+                desc_indicators = [
+                    "field", "column", "sensor", "measurement", "data",
+                    "represents", "contains", "monitoring", "parameter",
+                    "description", "meaning", "purpose", "unit",
+                ]
+                combined = " ".join(str(r.get("content", "")) for r in records).lower()
+                indicator_hits = sum(1 for ind in desc_indicators if ind in combined)
+                if indicator_hits >= 3:
+                    return "description"
+
+        return "data"
+
+    def extract_descriptions_from_file(
+        self,
+        records: List[Dict],
+        data_field_names: List[str],
+    ) -> Dict[str, str]:
+        """
+        Extract field name → description mappings from a description/documentation file.
+
+        Parses common patterns:
+        - "FieldName: description text"
+        - "FieldName - description text"
+        - "• FieldName: description"
+        - Numbered lists: "1. FieldName: description"
+        """
+        descriptions: Dict[str, str] = {}
+
+        # Combine all content lines
+        lines = [str(r.get("content", "")) for r in records if r.get("content")]
+        combined_text = "\n".join(lines)
+
+        # Normalize field names for fuzzy matching
+        field_name_map = {}
+        for f in data_field_names:
+            field_name_map[f.lower()] = f
+            field_name_map[f.lower().replace("_", "")] = f
+            field_name_map[f.lower().replace("_", " ")] = f
+
+        # Strategy 1: "FieldName: description" or "FieldName - description"
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Remove bullet/number prefixes
+            clean_line = re.sub(r'^[\s•\-\*\d.)\]]+\s*', '', line)
+
+            # Match "Name: description" or "Name - description"
+            match = re.match(
+                r'^([A-Za-z_][A-Za-z0-9_\s]*?)\s*[:–\-]\s+(.+)$',
+                clean_line,
+            )
+            if match:
+                field_part = match.group(1).strip()
+                desc_part = match.group(2).strip()
+
+                if len(desc_part) < 5:
+                    continue
+
+                # Try to match to a known data field
+                field_lower = field_part.lower()
+                field_no_space = field_lower.replace(" ", "").replace("_", "")
+
+                matched_field = None
+                if field_lower in field_name_map:
+                    matched_field = field_name_map[field_lower]
+                elif field_no_space in {k.replace(" ", "").replace("_", ""): k for k in field_name_map}:
+                    # Fuzzy match ignoring underscores/spaces
+                    for key, original in field_name_map.items():
+                        if key.replace(" ", "").replace("_", "") == field_no_space:
+                            matched_field = field_name_map[key]
+                            break
+
+                if matched_field:
+                    descriptions[matched_field] = desc_part
+                else:
+                    # Store with the name as-is (might match after normalization)
+                    descriptions[field_part] = desc_part
+
+        # Strategy 2: Use the deep extraction from _extract_field_descriptions_deep
+        if len(descriptions) < len(data_field_names) // 2:
+            deep_desc = self._extract_field_descriptions_deep(
+                combined_text, data_field_names
+            )
+            for field, desc in deep_desc.items():
+                if field not in descriptions:
+                    descriptions[field] = desc
+
+        return descriptions
+
+    def get_description_file_context(self, records: List[Dict]) -> str:
+        """Get the full text content of a description file for context enrichment."""
+        return "\n".join(str(r.get("content", "")) for r in records if r.get("content"))
+
+    # ============ Field Relevance Scoring ============
+
+    def classify_field_relevance(self, field: Dict) -> str:
+        """
+        Classify a field's role in the dataset:
+        - 'content': Core measurement/sensor data useful for analysis
+        - 'temporal': Timestamp or time-related fields
+        - 'identifier': IDs, serial numbers, names — useful for grouping but not analysis
+        - 'auxiliary': Metadata, line numbers, or low-value fields
+        """
+        name = field.get("name", "").lower()
+        ftype = field.get("inferred_type", "")
+        meaning = field.get("inferred_meaning", "").lower()
+
+        # Temporal fields
+        if ftype == "timestamp" or any(
+            p in name for p in ["time", "timestamp", "date", "epoch", "datetime"]
+        ):
+            return "temporal"
+
+        # Identifier fields
+        id_patterns = [
+            "id", "_id", "uuid", "serial", "name", "label", "tag",
+            "index", "row", "record_num", "line_number",
+        ]
+        if any(name == p or name.endswith(f"_{p}") or name.startswith(f"{p}_") for p in id_patterns):
+            return "identifier"
+        if name in ("line_number", "content"):
+            return "auxiliary"
+
+        # Auxiliary: fields with very low cardinality relative to records (constant values)
+        stats = field.get("statistics", {})
+        if stats:
+            std = stats.get("std")
+            if std is not None and std == 0:
+                return "auxiliary"
+
+        # Categorical fields with very few unique values might be identifiers
+        if ftype == "categorical":
+            unique = field.get("unique_count", 0)
+            if unique <= 2:
+                return "auxiliary"
+
+        # String fields that aren't recognized as anything specific
+        if ftype == "string" and "unknown" in meaning:
+            return "auxiliary"
+
+        # Everything else is content (measurement/sensor data)
+        return "content"

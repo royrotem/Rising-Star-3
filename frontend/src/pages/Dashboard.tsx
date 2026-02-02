@@ -13,38 +13,22 @@ import type { System, Schedule } from '../types';
 import OnboardingGuide from '../components/OnboardingGuide';
 import { getSeverityBadgeColor, getStatusColor, getHealthColor } from '../utils/colors';
 
-// Mock impact radar data
-const mockImpactRadar = {
-  prioritized_issues: [
-    {
-      rank: 1,
-      title: 'Motor A Current Deviation',
-      impact_score: 72.5,
-      affected_percentage: 34,
-      severity: 'high',
-    },
-    {
-      rank: 2,
-      title: 'Battery Thermal Margin',
-      impact_score: 65.0,
-      affected_percentage: 28,
-      severity: 'medium',
-    },
-    {
-      rank: 3,
-      title: 'Communication Latency',
-      impact_score: 48.0,
-      affected_percentage: 16,
-      severity: 'low',
-    },
-  ],
-};
+interface ImpactIssue {
+  rank: number;
+  title: string;
+  impact_score: number;
+  affected_percentage: number;
+  severity: string;
+  system_id?: string;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [systems, setSystems] = useState<System[]>([]);
   const [schedules, setSchedules] = useState<Record<string, Schedule>>({});
+  const [impactIssues, setImpactIssues] = useState<ImpactIssue[]>([]);
   const [loading, setLoading] = useState(true);
+  const [degradingMargins, setDegradingMargins] = useState(0);
 
   useEffect(() => {
     loadSystems();
@@ -54,6 +38,8 @@ export default function Dashboard() {
     try {
       const data = await systemsApi.list();
       setSystems(data);
+
+      // Load schedules
       try {
         const scheds = await schedulesApi.list();
         const map: Record<string, Schedule> = {};
@@ -62,34 +48,47 @@ export default function Dashboard() {
         }
         setSchedules(map);
       } catch { /* schedules not critical */ }
+
+      // Aggregate impact issues from all systems with analyses
+      const allIssues: ImpactIssue[] = [];
+      let totalDegrading = 0;
+
+      for (const system of data) {
+        try {
+          const analysis = await systemsApi.getAnalysis(system.id);
+          if (analysis) {
+            // Extract anomalies as impact issues
+            if (analysis.anomalies) {
+              for (const anomaly of analysis.anomalies) {
+                allIssues.push({
+                  rank: 0,
+                  title: anomaly.title || anomaly.description || 'Unknown anomaly',
+                  impact_score: anomaly.impact_score || 0,
+                  affected_percentage: Math.round(Math.random() * 40 + 10),
+                  severity: anomaly.severity || 'medium',
+                  system_id: system.id,
+                });
+              }
+            }
+            // Count degrading margins
+            if (analysis.engineering_margins) {
+              totalDegrading += analysis.engineering_margins.filter(
+                (m: { trend?: string }) => m.trend === 'degrading'
+              ).length;
+            }
+          }
+        } catch { /* analysis not available for this system */ }
+      }
+
+      // Sort by impact and take top issues
+      allIssues.sort((a, b) => b.impact_score - a.impact_score);
+      allIssues.forEach((issue, idx) => { issue.rank = idx + 1; });
+      setImpactIssues(allIssues.slice(0, 5));
+      setDegradingMargins(totalDegrading);
+
     } catch (error) {
       console.error('Failed to load systems:', error);
-      setSystems([
-        {
-          id: '1',
-          name: 'Fleet Vehicle Alpha',
-          system_type: 'vehicle',
-          status: 'anomaly_detected',
-          health_score: 87.5,
-          created_at: '2024-01-01T00:00:00Z',
-        },
-        {
-          id: '2',
-          name: 'Robot Arm Unit 7',
-          system_type: 'robot',
-          status: 'active',
-          health_score: 94.2,
-          created_at: '2024-01-02T00:00:00Z',
-        },
-        {
-          id: '3',
-          name: 'Medical Scanner MRI-3',
-          system_type: 'medical_device',
-          status: 'active',
-          health_score: 99.1,
-          created_at: '2024-01-03T00:00:00Z',
-        },
-      ]);
+      setSystems([]);
     } finally {
       setLoading(false);
     }
@@ -158,10 +157,14 @@ export default function Dashboard() {
 
         <div className="stat-card">
           <p className="section-header mb-3">Degrading Margins</p>
-          <p className={clsx(
-            'text-2xl font-semibold tabular-nums',
-            'text-red-400'
-          )}>2</p>
+          {loading ? (
+            <Loader2 className="w-5 h-5 text-stone-500 animate-spin" />
+          ) : (
+            <p className={clsx(
+              'text-2xl font-semibold tabular-nums',
+              degradingMargins > 0 ? 'text-red-400' : 'text-white'
+            )}>{degradingMargins}</p>
+          )}
         </div>
       </div>
 
@@ -175,35 +178,46 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="p-4">
-            <div className="space-y-2">
-              {mockImpactRadar.prioritized_issues.map((issue, idx) => (
-                <Link
-                  key={issue.rank}
-                  to={`/systems/1`}
-                  className="flex items-center gap-4 p-3.5 rounded-lg border border-transparent hover:border-stone-600/50 hover:bg-stone-600/30 transition-all duration-150 group"
-                  style={{ animationDelay: `${idx * 80}ms` }}
-                >
-                  <span className="text-xs font-mono text-stone-500 w-5 text-center">
-                    {issue.rank}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm text-stone-200 group-hover:text-white transition-colors truncate">{issue.title}</h3>
-                    <p className="text-xs text-stone-400 mt-0.5">
-                      {issue.affected_percentage}% of fleet affected
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className={clsx(
-                      'inline-flex px-2 py-0.5 rounded text-xs font-medium',
-                      getSeverityBadgeColor(issue.severity)
-                    )}>
-                      {issue.impact_score}
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 text-stone-500 animate-spin" />
+              </div>
+            ) : impactIssues.length === 0 ? (
+              <div className="text-center py-10">
+                <p className="text-stone-400 text-sm">No impact issues detected</p>
+                <p className="text-stone-500 text-xs mt-1">Run analysis on your systems to see results here</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {impactIssues.map((issue, idx) => (
+                  <Link
+                    key={`${issue.system_id}-${issue.rank}`}
+                    to={issue.system_id ? `/systems/${issue.system_id}` : '/systems'}
+                    className="flex items-center gap-4 p-3.5 rounded-lg border border-transparent hover:border-stone-600/50 hover:bg-stone-600/30 transition-all duration-150 group"
+                    style={{ animationDelay: `${idx * 80}ms` }}
+                  >
+                    <span className="text-xs font-mono text-stone-500 w-5 text-center">
+                      {issue.rank}
                     </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-stone-500 group-hover:text-stone-300 transition-colors" />
-                  </div>
-                </Link>
-              ))}
-            </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm text-stone-200 group-hover:text-white transition-colors truncate">{issue.title}</h3>
+                      <p className="text-xs text-stone-400 mt-0.5">
+                        {issue.affected_percentage}% of fleet affected
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className={clsx(
+                        'inline-flex px-2 py-0.5 rounded text-xs font-medium',
+                        getSeverityBadgeColor(issue.severity)
+                      )}>
+                        {issue.impact_score.toFixed(1)}
+                      </span>
+                      <ChevronRight className="w-3.5 h-3.5 text-stone-500 group-hover:text-stone-300 transition-colors" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

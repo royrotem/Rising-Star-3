@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     # Server
     HOST: str = "0.0.0.0"
     PORT: int = 8000
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://frontend:80"
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/uaie"

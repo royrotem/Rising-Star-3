@@ -1,15 +1,17 @@
 import { useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { 
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import {
   ArrowLeft,
   Upload,
   FileText,
   CheckCircle,
   XCircle,
   HelpCircle,
-  Loader2
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import clsx from 'clsx';
+import { systemsApi } from '../services/api';
 
 interface DiscoveredField {
   name: string;
@@ -32,18 +34,22 @@ interface ConfirmationRequest {
 
 export default function DataIngestion() {
   const { systemId } = useParams();
+  const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [discoveredFields, setDiscoveredFields] = useState<DiscoveredField[]>([]);
   const [confirmationRequests, setConfirmationRequests] = useState<ConfirmationRequest[]>([]);
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile) {
       setFile(droppedFile);
+      setError(null);
     }
   }, []);
 
@@ -51,68 +57,28 @@ export default function DataIngestion() {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
+      setError(null);
     }
   };
 
   const handleUpload = async () => {
-    if (!file) return;
-    
+    if (!file || !systemId) return;
+
     setUploading(true);
-    
-    // Simulate upload and schema discovery
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Mock discovered fields
-    setDiscoveredFields([
-      {
-        name: 'motor_current',
-        inferred_type: 'numeric',
-        physical_unit: 'amperes',
-        inferred_meaning: 'Motor current measurement',
-        confidence: 0.92,
-        sample_values: [12.5, 13.2, 11.8, 14.1, 12.9],
-      },
-      {
-        name: 'battery_temp',
-        inferred_type: 'numeric',
-        physical_unit: 'celsius',
-        inferred_meaning: 'Battery temperature',
-        confidence: 0.88,
-        sample_values: [35.2, 36.1, 34.8, 37.2, 35.9],
-      },
-      {
-        name: 'timestamp',
-        inferred_type: 'timestamp',
-        physical_unit: null,
-        inferred_meaning: 'Event timestamp',
-        confidence: 0.95,
-        sample_values: ['2024-01-10T10:00:00Z', '2024-01-10T10:01:00Z'],
-      },
-    ]);
-    
-    setConfirmationRequests([
-      {
-        type: 'field_confirmation',
-        field_name: 'motor_current',
-        question: 'I believe "motor_current" measures electric current in Amperes. Is this correct?',
-        inferred_unit: 'amperes',
-        inferred_type: 'numeric',
-        sample_values: [12.5, 13.2, 11.8],
-        options: ['Confirm', 'Correct', 'Skip'],
-      },
-      {
-        type: 'field_confirmation',
-        field_name: 'battery_temp',
-        question: 'I believe "battery_temp" is a temperature reading in Celsius. Is this correct?',
-        inferred_unit: 'celsius',
-        inferred_type: 'numeric',
-        sample_values: [35.2, 36.1, 34.8],
-        options: ['Confirm', 'Correct', 'Skip'],
-      },
-    ]);
-    
-    setUploading(false);
-    setUploadComplete(true);
+    setError(null);
+
+    try {
+      const result = await systemsApi.ingest(systemId, file, file.name);
+
+      setDiscoveredFields(result.discovered_fields || []);
+      setConfirmationRequests(result.confirmation_requests || []);
+      setUploadComplete(true);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      setError(message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleConfirmation = (fieldName: string, confirmed: boolean) => {
@@ -122,7 +88,35 @@ export default function DataIngestion() {
     }));
   };
 
-  const allConfirmed = confirmationRequests.every(
+  const handleSaveConfirmations = async () => {
+    if (!systemId) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const fieldConfirmations = Object.entries(confirmations).map(([field_name, is_correct]) => {
+        const field = discoveredFields.find(f => f.name === field_name);
+        return {
+          field_name,
+          is_correct,
+          confirmed_type: field?.inferred_type,
+          confirmed_unit: field?.physical_unit || undefined,
+          confirmed_meaning: field?.inferred_meaning,
+        };
+      });
+
+      await systemsApi.confirmFields(systemId, fieldConfirmations);
+      navigate(`/systems/${systemId}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to save confirmations.';
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const allConfirmed = confirmationRequests.length > 0 && confirmationRequests.every(
     req => confirmations[req.field_name] !== undefined
   );
 
@@ -142,11 +136,19 @@ export default function DataIngestion() {
         </div>
       </div>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+          <p className="text-red-300 text-sm">{error}</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-6">
         {/* Upload Area */}
         <div className="bg-stone-700 rounded-xl border border-stone-600 p-6">
           <h2 className="text-lg font-semibold text-white mb-4">Upload Data File</h2>
-          
+
           {!uploadComplete ? (
             <>
               <div
@@ -177,7 +179,7 @@ export default function DataIngestion() {
                     <div>
                       <p className="text-white font-medium">Drop your file here</p>
                       <p className="text-stone-400 text-sm mt-1">
-                        or click to browse (CSV, JSON, Parquet)
+                        or click to browse (CSV, JSON, Parquet, Excel, CAN, binary)
                       </p>
                     </div>
                   )}
@@ -205,8 +207,8 @@ export default function DataIngestion() {
               <div className="mt-6 p-4 bg-stone-700/50 rounded-lg">
                 <h3 className="text-sm font-medium text-primary-400 mb-2">Zero-Knowledge Ingestion</h3>
                 <p className="text-sm text-stone-400">
-                  Upload your raw data files. Our AI agents will autonomously analyze the 
-                  structure, infer field types and relationships, and present their 
+                  Upload your raw data files. Our AI agents will autonomously analyze the
+                  structure, infer field types and relationships, and present their
                   understanding for your confirmation.
                 </p>
               </div>
@@ -218,7 +220,7 @@ export default function DataIngestion() {
               <p className="text-stone-400 mb-6">
                 Discovered {discoveredFields.length} fields. Please review and confirm.
               </p>
-              
+
               <div className="text-left space-y-3">
                 {discoveredFields.map((field) => (
                   <div key={field.name} className="p-3 bg-stone-700/50 rounded-lg flex items-center gap-3">
@@ -259,16 +261,22 @@ export default function DataIngestion() {
           ) : confirmationRequests.length === 0 ? (
             <div className="text-center py-12">
               <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-              <p className="text-white">All fields confirmed!</p>
+              <p className="text-white mb-4">All fields auto-confirmed with high confidence!</p>
+              <Link
+                to={`/systems/${systemId}`}
+                className="inline-flex px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Back to System
+              </Link>
             </div>
           ) : (
             <div className="space-y-4">
               {confirmationRequests.map((req) => (
-                <div 
+                <div
                   key={req.field_name}
                   className={clsx(
                     'p-4 rounded-lg border transition-colors',
-                    confirmations[req.field_name] === true 
+                    confirmations[req.field_name] === true
                       ? 'border-green-500/50 bg-green-500/5'
                       : confirmations[req.field_name] === false
                       ? 'border-red-500/50 bg-red-500/5'
@@ -276,7 +284,7 @@ export default function DataIngestion() {
                   )}
                 >
                   <p className="text-white mb-3">{req.question}</p>
-                  
+
                   <div className="mb-3 p-2 bg-stone-700 rounded text-sm">
                     <span className="text-stone-400">Sample values: </span>
                     <span className="text-white">
@@ -314,8 +322,19 @@ export default function DataIngestion() {
               ))}
 
               {allConfirmed && (
-                <button className="w-full px-4 py-3 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors">
-                  Save Confirmations & Continue
+                <button
+                  onClick={handleSaveConfirmations}
+                  disabled={saving}
+                  className="w-full px-4 py-3 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Confirmations & Continue'
+                  )}
                 </button>
               )}
             </div>

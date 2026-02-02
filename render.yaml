@@ -31,7 +31,7 @@ services:
         sync: false  # user enters manually
       # Production CORS — Render injects the .onrender.com URL
       - key: CORS_ORIGINS
-        value: https://uaie.onrender.com,https://uaie-production.onrender.com
+        value: https://uaie-k5j2.onrender.com,https://uaie.onrender.com
       # Disable debug in production
       - key: DEBUG
         value: "false"

@@ -15,21 +15,22 @@ import { systemsApi } from '../services/api';
 
 interface DiscoveredField {
   name: string;
-  inferred_type: string;
-  physical_unit: string | null;
-  inferred_meaning: string;
+  inferred_type?: string;
+  physical_unit?: string | null;
+  inferred_meaning?: string;
   confidence: number;
-  sample_values: unknown[];
+  sample_values?: unknown[];
 }
 
 interface ConfirmationRequest {
-  type: string;
-  field_name: string;
+  type?: string;
+  field?: string;
+  field_name?: string;
   question: string;
-  inferred_unit: string | null;
-  inferred_type: string;
-  sample_values: unknown[];
-  options: string[];
+  inferred_unit?: string | null;
+  inferred_type?: string;
+  sample_values?: unknown[];
+  options?: string[];
 }
 
 export default function DataIngestion() {
@@ -116,8 +117,10 @@ export default function DataIngestion() {
     }
   };
 
+  const getFieldKey = (req: ConfirmationRequest) => getFieldKey(req) || req.field || '';
+
   const allConfirmed = confirmationRequests.length > 0 && confirmationRequests.every(
-    req => confirmations[req.field_name] !== undefined
+    req => confirmations[getFieldKey(req)] !== undefined
   );
 
   return (
@@ -228,7 +231,7 @@ export default function DataIngestion() {
                     <div className="flex-1">
                       <p className="text-white font-medium">{field.name}</p>
                       <p className="text-sm text-stone-400">
-                        {field.inferred_meaning} ({field.physical_unit || field.inferred_type})
+                        {field.inferred_meaning || 'Unknown'} ({field.physical_unit || field.inferred_type || 'unknown'})
                       </p>
                     </div>
                     <div className="text-right">
@@ -273,12 +276,12 @@ export default function DataIngestion() {
             <div className="space-y-4">
               {confirmationRequests.map((req) => (
                 <div
-                  key={req.field_name}
+                  key={getFieldKey(req)}
                   className={clsx(
                     'p-4 rounded-lg border transition-colors',
-                    confirmations[req.field_name] === true
+                    confirmations[getFieldKey(req)] === true
                       ? 'border-green-500/50 bg-green-500/5'
-                      : confirmations[req.field_name] === false
+                      : confirmations[getFieldKey(req)] === false
                       ? 'border-red-500/50 bg-red-500/5'
                       : 'border-stone-600 bg-stone-700/50'
                   )}
@@ -288,16 +291,16 @@ export default function DataIngestion() {
                   <div className="mb-3 p-2 bg-stone-700 rounded text-sm">
                     <span className="text-stone-400">Sample values: </span>
                     <span className="text-white">
-                      {req.sample_values.slice(0, 3).join(', ')}
+                      {(req.sample_values || []).slice(0, 3).join(', ')}
                     </span>
                   </div>
 
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleConfirmation(req.field_name, true)}
+                      onClick={() => handleConfirmation(getFieldKey(req), true)}
                       className={clsx(
                         'flex-1 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2',
-                        confirmations[req.field_name] === true
+                        confirmations[getFieldKey(req)] === true
                           ? 'bg-green-500 text-white'
                           : 'bg-stone-700 text-white hover:bg-stone-500'
                       )}
@@ -306,10 +309,10 @@ export default function DataIngestion() {
                       Confirm
                     </button>
                     <button
-                      onClick={() => handleConfirmation(req.field_name, false)}
+                      onClick={() => handleConfirmation(getFieldKey(req), false)}
                       className={clsx(
                         'flex-1 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2',
-                        confirmations[req.field_name] === false
+                        confirmations[getFieldKey(req)] === false
                           ? 'bg-red-500 text-white'
                           : 'bg-stone-700 text-white hover:bg-stone-500'
                       )}

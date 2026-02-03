@@ -117,7 +117,7 @@ export default function DataIngestion() {
     }
   };
 
-  const getFieldKey = (req: ConfirmationRequest) => getFieldKey(req) || req.field || '';
+  const getFieldKey = (req: ConfirmationRequest) => req.field_name || req.field || '';
 
   const allConfirmed = confirmationRequests.length > 0 && confirmationRequests.every(
     req => confirmations[getFieldKey(req)] !== undefined

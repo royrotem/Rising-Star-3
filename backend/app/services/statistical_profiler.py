@@ -8,11 +8,14 @@ field meanings, units, and relationships.
 Runs entirely locally — no API calls.
 """
 
+import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger("uaie.profiler")
 
 
 def build_field_profiles(records: List[Dict]) -> List[Dict[str, Any]]:
@@ -26,7 +29,9 @@ def build_field_profiles(records: List[Dict]) -> List[Dict[str, Any]]:
       - null/missing pattern analysis
       - value clustering hints
     """
+    logger.info("build_field_profiles: %d records", len(records))
     if not records:
+        logger.warning("build_field_profiles: no records — returning empty")
         return []
 
     # Sanitize records — stringify unhashable types
@@ -41,13 +46,16 @@ def build_field_profiles(records: List[Dict]) -> List[Dict[str, Any]]:
         clean.append(row)
 
     df = pd.DataFrame(clean)
+    logger.info("build_field_profiles: DataFrame created with %d cols: %s", len(df.columns), list(df.columns))
     profiles: List[Dict[str, Any]] = []
 
     for col in df.columns:
         series = df[col]
         profile = _profile_field(col, series, len(df))
+        logger.debug("  profiled '%s' → type=%s, category=%s", col, profile.get("detected_type"), profile.get("detected_category"))
         profiles.append(profile)
 
+    logger.info("build_field_profiles: done — %d profiles", len(profiles))
     return profiles
 
 

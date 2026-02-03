@@ -15,7 +15,7 @@ import os
 import logging
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uaie.llm_discovery")
 
 
 # ─── System type catalogue ───────────────────────────────────────────
@@ -239,21 +239,29 @@ async def discover_with_llm(
 
     Returns the parsed structured output, or None on failure.
     """
+    logger.info("discover_with_llm() called with %d field_profiles, api_key_len=%d",
+                len(field_profiles), len(api_key) if api_key else 0)
+
     try:
         from anthropic import AsyncAnthropic
+        logger.info("anthropic SDK imported successfully")
     except ImportError:
-        logger.warning("anthropic SDK not installed — skipping LLM discovery")
+        logger.error("anthropic SDK NOT INSTALLED — pip install anthropic")
         return None
 
     if not api_key:
+        logger.warning("No API key provided — returning None")
         return None
 
     prompt = _build_prompt(
         field_profiles, dataset_summary, description_context, file_classification,
     )
+    logger.info("Prompt built: %d characters", len(prompt))
+    logger.debug("Prompt preview (first 500 chars): %s", prompt[:500])
 
     try:
         client = AsyncAnthropic(api_key=api_key)
+        logger.info("Sending request to Claude (model=claude-sonnet-4-20250514, max_tokens=8192)...")
 
         response = await client.messages.create(
             model="claude-sonnet-4-20250514",
@@ -262,10 +270,17 @@ async def discover_with_llm(
             messages=[{"role": "user", "content": prompt}],
         )
 
+        logger.info("Claude response received: stop_reason=%s, usage=%s",
+                    response.stop_reason,
+                    {"input": response.usage.input_tokens, "output": response.usage.output_tokens} if response.usage else "?")
+
         raw_text = response.content[0].text.strip()
+        logger.info("Raw response length: %d chars", len(raw_text))
+        logger.debug("Raw response preview (first 300 chars): %s", raw_text[:300])
 
         # Strip markdown fences if the model wrapped them anyway
         if raw_text.startswith("```"):
+            logger.info("Stripping markdown code fences from response")
             raw_text = raw_text.split("\n", 1)[1] if "\n" in raw_text else raw_text[3:]
         if raw_text.endswith("```"):
             raw_text = raw_text[:-3].rstrip()
@@ -273,18 +288,24 @@ async def discover_with_llm(
             raw_text = raw_text[4:].lstrip()
 
         result = json.loads(raw_text)
+        sys_id = result.get("system_identification", {})
         logger.info(
-            "LLM discovery succeeded: system_type=%s, fields=%d",
-            result.get("system_identification", {}).get("system_type", "?"),
+            "LLM discovery SUCCEEDED: system_type=%s, confidence=%.2f, fields=%d, relationships=%d",
+            sys_id.get("system_type", "?"),
+            sys_id.get("system_type_confidence", 0),
             len(result.get("fields", [])),
+            len(result.get("field_relationships", [])),
         )
         return result
 
     except json.JSONDecodeError as e:
-        logger.error("LLM returned invalid JSON: %s", e)
+        logger.error("LLM returned INVALID JSON: %s", e)
+        logger.error("Raw text that failed to parse (first 500 chars): %s", raw_text[:500] if raw_text else "(empty)")
         return None
     except Exception as e:
-        logger.error("LLM discovery call failed: %s", e)
+        logger.error("LLM discovery call FAILED: %s: %s", type(e).__name__, e)
+        import traceback
+        logger.error(traceback.format_exc())
         return None
 
 

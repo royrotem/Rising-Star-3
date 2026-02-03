@@ -4,7 +4,9 @@ UAIE - Universal Autonomous Insight Engine
 Main FastAPI application entry point.
 """
 
+import logging
 import os
+import sys
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -13,6 +15,29 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 import uvicorn
+
+# ── Logging configuration ─────────────────────────────────────────────
+# Log to both console and file so we can always inspect what happened.
+_LOG_DIR = Path(os.environ.get("DATA_DIR", os.path.join(os.path.dirname(__file__), "..", "data")))
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_LOG_FILE = _LOG_DIR / "uaie_debug.log"
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(str(_LOG_FILE), mode="a", encoding="utf-8"),
+    ],
+)
+# Silence noisy third-party loggers
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+logging.getLogger("anthropic").setLevel(logging.INFO)
+
+_root_logger = logging.getLogger("uaie")
+_root_logger.info("=== UAIE logging initialised — log file: %s ===", _LOG_FILE)
 
 from .core.config import settings
 from .api.systems import router as systems_router

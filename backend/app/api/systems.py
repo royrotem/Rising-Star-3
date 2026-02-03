@@ -5,13 +5,17 @@ Handles system management, data ingestion, and analysis.
 """
 
 import json
+import logging
 import os
+import traceback
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+
+logger = logging.getLogger("uaie.systems")
 
 from ..services.data_store import data_store
 from ..services.ingestion import IngestionService
@@ -138,27 +142,34 @@ async def analyze_files(files: List[UploadFile] = File(...)):
         raise HTTPException(status_code=400, detail="No files uploaded")
 
     analysis_id = str(uuid.uuid4())
+    logger.info("=" * 60)
+    logger.info("ANALYZE-FILES START | analysis_id=%s | files=%d", analysis_id, len(files))
+    for f in files:
+        logger.info("  file: %s (content_type=%s)", f.filename, f.content_type)
 
     # ── Pass 1: parse all files ──────────────────────────────────────
     parsed_files: List[Dict] = []
 
     for file in files:
         try:
+            logger.info("[Pass 1] Parsing file: %s", file.filename)
             result = await ingestion_service.ingest_file(
                 file_content=file.file,
                 filename=file.filename,
                 system_id="temp_analysis",
                 source_name=file.filename,
             )
+            fields_found = len(result.get("discovered_fields", []))
+            records_found = result.get("record_count", 0)
+            logger.info("[Pass 1] OK: %s → %d fields, %d records", file.filename, fields_found, records_found)
             parsed_files.append({
                 "filename": file.filename,
                 "result": result,
             })
             file.file.seek(0)
         except Exception as e:
-            import traceback
-            print(f"Error processing file {file.filename}: {e}")
-            traceback.print_exc()
+            logger.error("[Pass 1] FAILED: %s → %s", file.filename, e)
+            logger.error(traceback.format_exc())
             parsed_files.append({
                 "filename": file.filename,
                 "result": None,
@@ -166,6 +177,7 @@ async def analyze_files(files: List[UploadFile] = File(...)):
             })
 
     # ── Pass 2: classify files as data vs description ────────────────
+    logger.info("[Pass 2] Classifying %d parsed files...", len(parsed_files))
     all_parsed_field_names: List[str] = []
     for pf in parsed_files:
         result = pf.get("result")
@@ -199,6 +211,9 @@ async def analyze_files(files: List[UploadFile] = File(...)):
         pf["role"] = ingestion_service.classify_file_role(
             pf["filename"], records, fields_as_df, other_fields,
         )
+
+    for pf in parsed_files:
+        logger.info("[Pass 2]   %s → role=%s", pf["filename"], pf.get("role", "?"))
 
     # ── Pass 3: extract descriptions from description files ──────────
     description_field_map: Dict[str, str] = {}
@@ -286,8 +301,10 @@ async def analyze_files(files: List[UploadFile] = File(...)):
     )
 
     # ── Pass 5: statistical profiling ────────────────────────────────
+    logger.info("[Pass 5] Building statistical profiles from %d records...", len(all_records))
     field_profiles = build_field_profiles(all_records)
     dataset_summary = build_dataset_summary(all_records, field_profiles)
+    logger.info("[Pass 5] Profiled %d fields. Dataset summary: %s", len(field_profiles), json.dumps(dataset_summary, default=str)[:500])
 
     # Combine description context
     combined_context_texts: List[str] = list(description_context_texts)
@@ -307,26 +324,56 @@ async def analyze_files(files: List[UploadFile] = File(...)):
     # ── Pass 6: LLM-powered discovery (or fallback) ─────────────────
     api_key = get_anthropic_api_key()
     ai_cfg = get_ai_settings()
-    use_llm = bool(api_key) and ai_cfg.get("enable_ai_agents", True) and len(field_profiles) > 0
+    has_key = bool(api_key)
+    ai_enabled = ai_cfg.get("enable_ai_agents", True)
+    has_profiles = len(field_profiles) > 0
+    use_llm = has_key and ai_enabled and has_profiles
+
+    logger.info("[Pass 6] LLM decision: api_key=%s (len=%d), ai_enabled=%s, field_profiles=%d → use_llm=%s",
+                "YES" if has_key else "NO",
+                len(api_key) if api_key else 0,
+                ai_enabled,
+                len(field_profiles),
+                use_llm)
 
     llm_result = None
     if use_llm:
-        llm_result = await discover_with_llm(
-            field_profiles=field_profiles,
-            dataset_summary=dataset_summary,
-            description_context=description_context,
-            file_classification=file_classification,
-            api_key=api_key,
-        )
+        logger.info("[Pass 6] Calling LLM (discover_with_llm)...")
+        try:
+            llm_result = await discover_with_llm(
+                field_profiles=field_profiles,
+                dataset_summary=dataset_summary,
+                description_context=description_context,
+                file_classification=file_classification,
+                api_key=api_key,
+            )
+            if llm_result:
+                logger.info("[Pass 6] LLM SUCCESS: system_type=%s, fields=%d, relationships=%d",
+                            llm_result.get("system_identification", {}).get("system_type", "?"),
+                            len(llm_result.get("fields", [])),
+                            len(llm_result.get("field_relationships", [])))
+            else:
+                logger.warning("[Pass 6] LLM returned None (call succeeded but no result)")
+        except Exception as e:
+            logger.error("[Pass 6] LLM call EXCEPTION: %s", e)
+            logger.error(traceback.format_exc())
+    else:
+        logger.info("[Pass 6] Skipping LLM — using rule-based fallback")
 
     if llm_result:
         # ── Pass 7: cross-validate ──────────────────────────────────
+        logger.info("[Pass 7] Cross-validating LLM output...")
         llm_result = cross_validate(llm_result, field_profiles)
         ai_powered = True
+        logger.info("[Pass 7] Cross-validation complete")
     else:
         # Fallback to rule-based
+        logger.info("[Pass 6-fallback] Running fallback_rule_based...")
         llm_result = fallback_rule_based(field_profiles, dataset_summary)
         ai_powered = False
+        logger.info("[Pass 6-fallback] Rule-based result: system_type=%s, fields=%d",
+                    llm_result.get("system_identification", {}).get("system_type", "?"),
+                    len(llm_result.get("fields", [])))
 
     # ── Build recommendation from LLM result ─────────────────────────
     sys_id = llm_result.get("system_identification", {})
@@ -376,6 +423,19 @@ async def analyze_files(files: List[UploadFile] = File(...)):
     )
 
     file_errors = [s for s in file_summaries if s.get("status") == "error"]
+
+    logger.info("=" * 60)
+    logger.info("ANALYZE-FILES COMPLETE | analysis_id=%s", analysis_id)
+    logger.info("  ai_powered: %s", ai_powered)
+    logger.info("  total_records: %d", total_records)
+    logger.info("  discovered_fields: %d", len(discovered_fields_enriched))
+    logger.info("  recommendation: type=%s, confidence=%.2f",
+                recommendation.get("suggested_type", "?"),
+                recommendation.get("confidence", 0))
+    logger.info("  field_relationships: %d", len(llm_result.get("field_relationships", [])))
+    logger.info("  blind_spots: %d", len(llm_result.get("blind_spots", [])))
+    logger.info("  confirmation_requests: %d", len(llm_result.get("recommended_confirmation_fields", [])))
+    logger.info("=" * 60)
 
     return {
         "status": "success",

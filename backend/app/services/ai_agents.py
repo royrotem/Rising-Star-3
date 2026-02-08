@@ -65,6 +65,10 @@ except ImportError:
 AGENT_TIMEOUT = 90
 # Global orchestrator timeout — total wall-clock limit for all agents combined
 ORCHESTRATOR_TIMEOUT = 300
+# Batch size for running agents — prevents rate limit issues (8K tokens/min limit)
+AGENT_BATCH_SIZE = 5
+# Delay between batches in seconds — allows rate limit to reset
+BATCH_DELAY_SECONDS = 12
 
 # All available agent names (used for selection validation)
 ALL_AGENT_NAMES = [
@@ -2326,38 +2330,62 @@ class AgentOrchestrator:
         logger.info("[Orchestrator] START | system_id=%s | system_type=%s | system_name=%s",
                     system_id, system_type, system_name)
         logger.info("[Orchestrator] Running %d agents: %s", len(active_agents), [a.name for a in active_agents])
-        logger.info("[Orchestrator] web_grounding=%s, timeout=%ds", enable_web_grounding, ORCHESTRATOR_TIMEOUT)
+        logger.info("[Orchestrator] web_grounding=%s, timeout=%ds, batch_size=%d, batch_delay=%ds",
+                    enable_web_grounding, ORCHESTRATOR_TIMEOUT, AGENT_BATCH_SIZE, BATCH_DELAY_SECONDS)
 
-        # Create proper asyncio Tasks so we can cancel them on global timeout
-        tasks = [
-            asyncio.create_task(
-                agent.analyze(system_type, system_name, data_profile, metadata_context),
-                name=agent.name,
-            )
-            for agent in active_agents
-        ]
+        # Run agents in batches to avoid rate limiting
+        # Anthropic has 8K output tokens/minute limit - running 25 agents at once exceeds this
         t_orch_start = time.time()
-        try:
-            results = await asyncio.wait_for(
-                asyncio.gather(*tasks, return_exceptions=True),
-                timeout=ORCHESTRATOR_TIMEOUT,
-            )
-            logger.info("[Orchestrator] All agents finished in %.2fs", round(time.time() - t_orch_start, 2))
-        except asyncio.TimeoutError:
-            elapsed = round(time.time() - t_orch_start, 2)
-            logger.error("[Orchestrator] GLOBAL TIMEOUT (%ds) hit after %.2fs — collecting partial results",
-                         ORCHESTRATOR_TIMEOUT, elapsed)
-            # Cancel remaining tasks and collect whatever finished
-            results = []
-            for task in tasks:
-                if task.done() and not task.cancelled():
-                    try:
-                        results.append(task.result())
-                    except Exception as exc:
-                        results.append(exc)
-                else:
-                    task.cancel()
-                    results.append(TimeoutError("Orchestrator global timeout"))
+        results = []
+
+        # Split agents into batches
+        batches = [active_agents[i:i + AGENT_BATCH_SIZE] for i in range(0, len(active_agents), AGENT_BATCH_SIZE)]
+        logger.info("[Orchestrator] Split into %d batches of up to %d agents each", len(batches), AGENT_BATCH_SIZE)
+
+        for batch_idx, batch in enumerate(batches):
+            batch_names = [a.name for a in batch]
+            logger.info("[Orchestrator] Batch %d/%d: %s", batch_idx + 1, len(batches), batch_names)
+
+            # Create tasks for this batch
+            batch_tasks = [
+                asyncio.create_task(
+                    agent.analyze(system_type, system_name, data_profile, metadata_context),
+                    name=agent.name,
+                )
+                for agent in batch
+            ]
+
+            try:
+                # Calculate remaining time for timeout
+                elapsed_so_far = time.time() - t_orch_start
+                remaining_timeout = max(30, ORCHESTRATOR_TIMEOUT - elapsed_so_far)
+
+                batch_results = await asyncio.wait_for(
+                    asyncio.gather(*batch_tasks, return_exceptions=True),
+                    timeout=remaining_timeout,
+                )
+                results.extend(batch_results)
+                logger.info("[Orchestrator] Batch %d/%d complete: %d results", batch_idx + 1, len(batches), len(batch_results))
+
+            except asyncio.TimeoutError:
+                logger.error("[Orchestrator] Batch %d TIMEOUT — collecting partial results", batch_idx + 1)
+                for task in batch_tasks:
+                    if task.done() and not task.cancelled():
+                        try:
+                            results.append(task.result())
+                        except Exception as exc:
+                            results.append(exc)
+                    else:
+                        task.cancel()
+                        results.append(TimeoutError("Batch timeout"))
+                break  # Stop processing more batches on timeout
+
+            # Add delay between batches to respect rate limits (except after last batch)
+            if batch_idx < len(batches) - 1:
+                logger.info("[Orchestrator] Waiting %ds before next batch (rate limit cooldown)...", BATCH_DELAY_SECONDS)
+                await asyncio.sleep(BATCH_DELAY_SECONDS)
+
+        logger.info("[Orchestrator] All batches finished in %.2fs", round(time.time() - t_orch_start, 2))
 
         # Collect all findings
         all_findings: List[AgentFinding] = []
